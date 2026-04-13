@@ -1667,6 +1667,8 @@ function showToast(msg, type = 'success') {
   setTimeout(() => el.classList.remove('show'), 2400);
 }
 
+
+
 function saveCases() { localStorage.setItem('ramq_cases', JSON.stringify(cases)); }
 
 // Close results on outside click
@@ -1681,6 +1683,106 @@ document.getElementById('exportFrom').addEventListener('change', updateExportSum
 document.getElementById('exportTo').addEventListener('change', updateExportSummary);
 document.getElementById('exportStatus').addEventListener('change', updateExportSummary);
 
+/* =========================
+   AUTH FUNCTIONS (GLOBAL)
+   ========================= */
+
+async function requestEmailCode() {
+  console.log('requestEmailCode fired');
+
+  try {
+    const emailInput = document.getElementById('loginEmail');
+    if (!emailInput) {
+      alert('Champ email introuvable');
+      return;
+    }
+
+    const email = emailInput.value.trim();
+
+    if (!email) {
+      alert('Veuillez entrer votre adresse courriel.');
+      return;
+    }
+
+    if (!supabase) {
+      alert('Supabase non initialisé.');
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email,
+      options: {
+        shouldCreateUser: true
+      }
+    });
+
+    if (error) {
+      console.error(error);
+      alert('Erreur: ' + error.message);
+      return;
+    }
+
+    document.getElementById('authEmailPreview').textContent = email;
+    document.getElementById('authEmailStep').classList.remove('active');
+    document.getElementById('authCodeStep').classList.add('active');
+
+    console.log('OTP sent');
+    alert('Code envoyé par courriel');
+  } catch (err) {
+    console.error(err);
+    alert('Erreur inattendue: ' + err.message);
+  }
+}
+
+async function verifyEmailCode() {
+  try {
+    const email = document.getElementById('loginEmail').value.trim();
+    const code = document.getElementById('loginCode').value.trim();
+
+    if (!email || !code) {
+      alert('Veuillez entrer le code.');
+      return;
+    }
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email,
+      token: code,
+      type: 'email'
+    });
+
+    if (error) {
+      console.error(error);
+      alert('Erreur: ' + error.message);
+      return;
+    }
+
+    document.getElementById('authOverlay').style.display = 'none';
+
+    console.log('Login success', data);
+    alert('Connexion réussie');
+
+  } catch (err) {
+    console.error(err);
+    alert('Erreur inattendue');
+  }
+}
+
+function backToEmailStep() {
+  document.getElementById('authCodeStep').classList.remove('active');
+  document.getElementById('authEmailStep').classList.add('active');
+}
+
+function resendEmailCode() {
+  requestEmailCode();
+}
+
+/* MAKE FUNCTIONS GLOBAL (VERY IMPORTANT) */
+window.requestEmailCode = requestEmailCode;
+window.verifyEmailCode = verifyEmailCode;
+window.backToEmailStep = backToEmailStep;
+window.resendEmailCode = resendEmailCode;  
+  
+  
 init();
 </script>
 </body>
