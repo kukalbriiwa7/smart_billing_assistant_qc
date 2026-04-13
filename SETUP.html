@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ChirurgieQC — Guide de déploiement</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:820px;margin:0 auto;padding:40px 24px 80px;background:#0a0f1e;color:#e2e8f4;line-height:1.7}
+h1{font-size:28px;margin-bottom:6px;color:#e2e8f4}
+h1 span{color:#3b82f6}
+.sub{color:#64748b;font-size:14px;margin-bottom:40px}
+h2{font-size:18px;font-weight:700;color:#e2e8f4;margin:36px 0 12px;padding-bottom:8px;border-bottom:1px solid #263350}
+h3{font-size:14px;font-weight:700;color:#f59e0b;margin:18px 0 8px}
+p,li{color:#94a3b8;font-size:14px;margin-bottom:10px}
+ul,ol{padding-left:20px;margin-bottom:14px}
+code{background:#1a2236;border:1px solid #263350;border-radius:5px;padding:2px 7px;font-family:monospace;font-size:12px;color:#10b981}
+pre{background:#1a2236;border:1px solid #263350;border-radius:10px;padding:16px;overflow-x:auto;margin:12px 0}
+pre code{background:none;border:none;padding:0;font-size:12px;color:#e2e8f4}
+.step{display:flex;gap:14px;margin-bottom:16px}
+.num{width:30px;height:30px;border-radius:50%;background:#3b82f6;color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-body{flex:1}
+.step-title{font-weight:700;font-size:15px;color:#e2e8f4;margin-bottom:3px}
+.step-desc{font-size:13px;color:#94a3b8;line-height:1.6}
+.card{background:#111827;border:1px solid #263350;border-radius:12px;padding:16px 20px;margin-bottom:14px}
+.card-title{font-weight:700;font-size:14px;color:#e2e8f4;margin-bottom:6px}
+.card-desc{font-size:13px;color:#94a3b8;line-height:1.6}
+.warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:9px;padding:12px 16px;font-size:13px;color:#94a3b8;margin:14px 0}
+.warn strong{color:#f59e0b}
+.ok{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:9px;padding:12px 16px;font-size:13px;color:#94a3b8;margin:14px 0}
+.ok strong{color:#10b981}
+a{color:#3b82f6}
+</style>
+</head>
+<body>
+
+<h1>Chirurgie<span>QC</span> — Guide de déploiement complet</h1>
+<p class="sub">Comment mettre l'application en ligne et configurer la connexion par courriel en moins de 20 minutes.</p>
+
+<h2>Ce que vous avez dans ce ZIP</h2>
+<ul>
+  <li><code>index.html</code> — L'application complète (interface + logique + base de données RAMQ)</li>
+  <li><code>manifest.json</code> — Permet d'ajouter l'app à l'écran d'accueil iPhone</li>
+  <li><code>SETUP.html</code> — Ce guide</li>
+</ul>
+<div class="ok"><strong>Mode local sans serveur :</strong> L'app fonctionne immédiatement sans aucune configuration. Les données sont sauvegardées dans Safari sur votre appareil. Pour la connexion multi-appareils et la sauvegarde sur serveur, suivez les étapes ci-dessous.</div>
+
+<h2>Étape 1 — Créer votre base de données Supabase (gratuit)</h2>
+<p>Supabase est un service gratuit qui fournit une base de données PostgreSQL et un système d'authentification. Le plan gratuit inclut 50 000 utilisateurs actifs et 500 MB de base de données.</p>
+
+<div class="step"><div class="num">1</div><div class="step-body"><div class="step-title">Créer un compte Supabase</div><div class="step-desc">Allez sur <a href="https://supabase.com" target="_blank">supabase.com</a> → cliquez "Start your project" → inscrivez-vous avec votre courriel GitHub ou Google.</div></div></div>
+
+<div class="step"><div class="num">2</div><div class="step-body"><div class="step-title">Créer un nouveau projet</div><div class="step-desc">Cliquez "New project" → donnez-lui un nom (ex: <code>chirurgieqc</code>) → choisissez un mot de passe fort pour la base de données → choisissez la région <strong>Canada (East)</strong> → cliquez "Create new project". Attendez ~2 minutes que le projet soit prêt.</div></div></div>
+
+<div class="step"><div class="num">3</div><div class="step-body"><div class="step-title">Créer la table de données</div><div class="step-desc">Dans votre projet Supabase, cliquez sur <strong>SQL Editor</strong> (menu de gauche, icône terminale) → cliquez "New query" → copiez et collez le SQL suivant, puis cliquez "Run":</div></div></div>
+
+<pre><code>-- Table pour stocker les cas chirurgicaux
+CREATE TABLE cases (
+  id          TEXT PRIMARY KEY,
+  user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  date        DATE NOT NULL,
+  payload     JSONB NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Activer la sécurité par ligne (Row Level Security)
+ALTER TABLE cases ENABLE ROW LEVEL SECURITY;
+
+-- Politique: chaque chirurgien ne voit que ses propres cas
+CREATE POLICY "Chirurgiens voient leurs propres cas"
+  ON cases FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Index pour accélérer les recherches par utilisateur
+CREATE INDEX idx_cases_user_date ON cases(user_id, date DESC);</code></pre>
+
+<div class="step"><div class="num">4</div><div class="step-body"><div class="step-title">Configurer l'authentification par courriel</div><div class="step-desc">Dans Supabase, allez dans <strong>Authentication → Providers → Email</strong>. Vérifiez que "Enable Email provider" est activé. Assurez-vous que "Confirm email" est désactivé (pour simplifier la connexion OTP sans confirmation préalable). Courriel OTP est activé par défaut.</div></div></div>
+
+<div class="step"><div class="num">5</div><div class="step-body"><div class="step-title">Récupérer vos clés API</div><div class="step-desc">Dans Supabase, allez dans <strong>Project Settings → API</strong> (icône engrenage en bas à gauche). Vous trouverez:<br>• <strong>Project URL</strong> — ressemble à <code>https://abcxyzabc.supabase.co</code><br>• <strong>anon public key</strong> — une longue chaîne commençant par <code>eyJ...</code></div></div></div>
+
+<h2>Étape 2 — Configurer l'application</h2>
+<p>Ouvrez le fichier <code>index.html</code> dans un éditeur de texte (Notepad sur Windows, TextEdit sur Mac en mode texte brut, ou VS Code). Cherchez ces deux lignes au début du code JavaScript :</p>
+
+<pre><code>const SUPABASE_URL      = 'VOTRE_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'VOTRE_SUPABASE_ANON_KEY';</code></pre>
+
+<p>Remplacez <code>VOTRE_SUPABASE_URL</code> et <code>VOTRE_SUPABASE_ANON_KEY</code> par vos vraies valeurs de l'étape 1.5. Exemple :</p>
+
+<pre><code>const SUPABASE_URL      = 'https://abcxyzabc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3...';</code></pre>
+
+<p>Sauvegardez le fichier.</p>
+
+<h2>Étape 3 — Mettre l'app en ligne (GitHub Pages, gratuit)</h2>
+
+<div class="step"><div class="num">1</div><div class="step-body"><div class="step-title">Créer un compte GitHub</div><div class="step-desc">Allez sur <a href="https://github.com" target="_blank">github.com</a> → "Sign up" → créez un compte gratuit.</div></div></div>
+
+<div class="step"><div class="num">2</div><div class="step-body"><div class="step-title">Créer un dépôt</div><div class="step-desc">Connecté à GitHub, cliquez le bouton vert <strong>"New"</strong> (haut gauche) → nommez-le <code>chirurgieqc</code> → laissez-le en <strong>Public</strong> → cliquez "Create repository".</div></div></div>
+
+<div class="step"><div class="num">3</div><div class="step-body"><div class="step-title">Téléverser les fichiers</div><div class="step-desc">Sur la page du dépôt, cliquez <strong>"uploading an existing file"</strong> → glissez <code>index.html</code> et <code>manifest.json</code> dans la zone → faites défiler vers le bas → cliquez <strong>"Commit changes"</strong>.</div></div></div>
+
+<div class="step"><div class="num">4</div><div class="step-body"><div class="step-title">Activer GitHub Pages</div><div class="step-desc">Dans votre dépôt → cliquez <strong>Settings</strong> (menu haut) → dans le menu gauche cliquez <strong>Pages</strong> → sous "Source" sélectionnez <strong>"Deploy from a branch"</strong> → choisissez la branche <strong>main</strong> → cliquez <strong>Save</strong>. Attendez 2-3 minutes.</div></div></div>
+
+<div class="step"><div class="num">5</div><div class="step-body"><div class="step-title">Obtenir votre URL</div><div class="step-desc">Actualisez la page Settings → Pages. Votre URL apparaîtra : <code>https://votrenom.github.io/chirurgieqc</code>. C'est l'URL à partager avec les chirurgiens.</div></div></div>
+
+<h2>Étape 4 — Configurer Supabase pour accepter votre URL</h2>
+<p>Supabase a besoin de savoir d'où viennent les requêtes pour des raisons de sécurité.</p>
+
+<div class="step"><div class="num">1</div><div class="step-body"><div class="step-title">Ajouter l'URL dans Supabase</div><div class="step-desc">Dans Supabase → <strong>Authentication → URL Configuration</strong> → dans "Site URL" entrez votre URL GitHub Pages : <code>https://votrenom.github.io</code> → dans "Redirect URLs" ajoutez : <code>https://votrenom.github.io/chirurgieqc</code> → cliquez Save.</div></div></div>
+
+<div class="step"><div class="num">2</div><div class="step-body"><div class="step-title">Ajouter dans les paramètres CORS</div><div class="step-desc">Dans Supabase → <strong>Project Settings → API</strong> → section "CORS" → ajoutez <code>https://votrenom.github.io</code> dans les origines autorisées.</div></div></div>
+
+<h2>Étape 5 — Ajouter à l'écran d'accueil iPhone</h2>
+
+<div class="step"><div class="num">1</div><div class="step-body"><div class="step-title">Ouvrir dans Safari</div><div class="step-desc">Sur votre iPhone, ouvrez <strong>Safari</strong> (obligatoirement Safari, pas Chrome) et naviguez vers votre URL GitHub Pages.</div></div></div>
+
+<div class="step"><div class="num">2</div><div class="step-body"><div class="step-title">Ajouter à l'écran d'accueil</div><div class="step-desc">Tapez le bouton de partage (carré avec flèche vers le haut, en bas de Safari) → faites défiler → tapez <strong>"Ajouter à l'écran d'accueil"</strong> → nommez-la "ChirurgieQC" → tapez <strong>Ajouter</strong>.</div></div></div>
+
+<p>L'application s'ouvre maintenant en plein écran comme une app native, sans la barre Safari.</p>
+
+<h2>Comment fonctionne la connexion par courriel</h2>
+<div class="card"><div class="card-title">Flux de connexion OTP (One-Time Password)</div><div class="card-desc">1. Le chirurgien entre son adresse courriel<br>2. Supabase envoie automatiquement un courriel avec un code à 6 chiffres (valide 10 minutes)<br>3. Le chirurgien entre le code dans l'app<br>4. L'app se connecte et charge les cas sauvegardés sur le serveur<br>5. La session est mémorisée — pas besoin de se reconnecter à chaque fois<br><br>Aucun mot de passe n'est jamais créé ni stocké. Chaque connexion utilise un nouveau code à usage unique.</div></div>
+
+<div class="warn"><strong>⚠️ Important :</strong> Les courriels OTP peuvent parfois atterrir dans le dossier Indésirables/Spam la première fois. Demandez aux chirurgiens de vérifier leur dossier spam si le code n'arrive pas dans les 2 minutes. Après avoir marqué le courriel Supabase comme "non-spam", les futurs codes arriveront normalement.</div>
+
+<h2>Sécurité des données</h2>
+<ul>
+  <li>Chaque chirurgien voit <strong>uniquement ses propres cas</strong> — la base de données est protégée par Row Level Security</li>
+  <li>Les données sont chiffrées en transit (HTTPS) et au repos dans Supabase</li>
+  <li>Supabase est hébergé sur AWS et est conforme SOC 2 Type II</li>
+  <li>Le plan gratuit Supabase est suffisant pour des dizaines de chirurgiens</li>
+  <li>Pour des exigences de conformité PIPEDA/LPRPDE plus strictes, Supabase offre des plans payants avec hébergement canadien dédié</li>
+</ul>
+
+<h2>Dépannage</h2>
+<div class="card"><div class="card-title">Le code OTP ne fonctionne pas</div><div class="card-desc">Vérifiez que l'URL du site est bien configurée dans Supabase Authentication → URL Configuration. Le code expire après 10 minutes — demandez-en un nouveau.</div></div>
+<div class="card"><div class="card-title">Les données ne se synchronisent pas</div><div class="card-desc">Vérifiez que les valeurs SUPABASE_URL et SUPABASE_ANON_KEY dans index.html correspondent exactement à celles de votre projet Supabase. Vérifiez la console du navigateur (F12) pour les messages d'erreur.</div></div>
+<div class="card"><div class="card-title">L'app ne s'affiche pas sur GitHub Pages</div><div class="card-desc">GitHub Pages peut prendre jusqu'à 5 minutes la première fois. Vérifiez dans Settings → Pages que le statut indique "Your site is live at..."</div></div>
+<div class="card"><div class="card-title">Mode local vs mode connecté</div><div class="card-desc">Si Supabase n'est pas configuré, l'app fonctionne en mode local : les données sont stockées dans Safari sur l'appareil. Une bannière orange l'indique. Pour migrer les données locales vers le serveur, exportez d'abord en Excel depuis l'onglet Export.</div></div>
+
+</body>
+</html>

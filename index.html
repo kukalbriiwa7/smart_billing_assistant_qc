@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="ChirurgieQC"/>
+<meta name="theme-color" content="#0a0f1e"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ChirurgieQC — Facturation RAMQ</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- SheetJS for Excel export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ═══════════════════════════════ TOKENS ═══════════════════════════════ */
+:root{
+  --bg:#0a0f1e; --surface:#111827; --surface2:#1a2236; --surface3:#212d44;
+  --border:#263350; --accent:#3b82f6; --accent2:#60a5fa;
+  --green:#10b981; --red:#ef4444; --amber:#f59e0b; --purple:#8b5cf6; --cyan:#06b6d4;
+  --text:#e2e8f4; --muted:#64748b;
+  --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;min-height:100dvh;overflow-x:hidden}
+
+/* ═══════════════════════ LOGIN SCREEN ════════════════════════════════ */
+#loginScreen{
+  min-height:100dvh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:calc(var(--safe-top) + 28px) 20px calc(var(--safe-bottom) + 28px);
+  background:radial-gradient(ellipse at 50% 0%,#1a2a4a 0%,var(--bg) 60%);
+}
+.login-box{width:100%;max-width:380px}
+.login-logo{text-align:center;margin-bottom:36px}
+.login-logo h1{font-family:'Playfair Display',serif;font-size:36px;font-weight:800;line-height:1}
+.login-logo h1 span{color:var(--accent)}
+.login-logo p{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:2.5px;margin-top:6px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px 22px}
+.login-card h2{font-size:17px;font-weight:600;color:var(--text);margin-bottom:5px}
+.login-card .sub{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:22px}
+.otp-input{
+  font-family:'IBM Plex Mono',monospace;font-size:28px;letter-spacing:10px;
+  text-align:center;width:100%;
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  color:var(--text);padding:12px 14px;outline:none;
+}
+.otp-input:focus{border-color:var(--accent)}
+.login-note{font-size:11px;color:var(--muted);text-align:center;margin-top:16px;line-height:1.6}
+.login-note a{color:var(--accent2);cursor:pointer;text-decoration:none}
+.local-mode-btn{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;cursor:pointer;text-decoration:underline}
+
+/* ═══════════════════════ MAIN APP ════════════════════════════════════ */
+#mainApp{display:none;padding-bottom:calc(var(--safe-bottom) + 64px)}
+
+/* config warning banner */
+.config-banner{
+  background:#7c2d12;color:#fef3c7;font-size:11px;padding:7px 14px;
+  text-align:center;line-height:1.5;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.config-banner button{background:none;border:none;color:#fef3c7;font-size:15px;cursor:pointer;line-height:1}
+
+/* Header */
+.app-header{
+  background:linear-gradient(135deg,#0a0f1e,#111827);
+  border-bottom:1px solid var(--border);
+  padding:14px 18px 10px;
+  position:sticky;top:0;z-index:100;
+}
+.app-header-top{display:flex;justify-content:space-between;align-items:flex-start}
+.app-logo{font-family:'Playfair Display',serif;font-size:20px;font-weight:800;letter-spacing:-0.5px;line-height:1}
+.app-logo span{color:var(--accent)}
+.app-logo sub{font-size:9px;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-weight:400;display:block;margin-top:2px;letter-spacing:1px;text-transform:uppercase}
+.header-right{text-align:right}
+.header-total-val{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--green);line-height:1}
+.header-total-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.header-user{font-size:10px;color:var(--muted);margin-top:8px;font-family:'IBM Plex Mono',monospace;display:flex;justify-content:space-between;align-items:center}
+.logout-btn{background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted);font-size:10px;padding:2px 7px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+
+/* Tabs */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:72px;z-index:99}
+.tabs::-webkit-scrollbar{display:none}
+.tab-btn{flex-shrink:0;padding:10px 14px;background:none;border:none;color:var(--muted);font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:color .2s,border-color .2s;white-space:nowrap}
+.tab-btn.active{color:var(--accent2);border-bottom-color:var(--accent)}
+
+/* Pages */
+.page{display:none;padding:16px}
+.page.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px}
+.card-title{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-bottom:12px}
+
+/* Form */
+.form-group{margin-bottom:12px}
+.form-label{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:5px}
+.form-input,.form-select,.form-textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:9px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;
+  font-size:14px;padding:10px 13px;outline:none;transition:border-color .2s;-webkit-appearance:none;
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent)}
+.form-textarea{resize:none;height:70px;font-size:13px}
+.form-row{display:flex;gap:10px}
+.form-row .form-group{flex:1}
+
+/* Code search */
+.code-search-wrap{position:relative}
+.code-results{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:var(--surface2);border:1px solid var(--accent);border-radius:10px;
+  max-height:300px;overflow-y:auto;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.7);
+}
+.cri{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s}
+.cri:last-child{border-bottom:none}
+.cri:active{background:var(--surface3)}
+.cri-code{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);font-weight:600;margin-bottom:2px}
+.cri-desc{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px}
+.cri-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cri-spec{font-size:10px;color:var(--muted)}
+.cri-fee{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green);font-weight:600}
+mark{background:rgba(96,165,250,.22);color:var(--accent2);border-radius:2px;padding:0 1px;font-style:normal}
+
+/* Selected codes */
+.sci{display:flex;align-items:flex-start;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:7px}
+.sci-info{flex:1}
+.sci-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px}
+.sci-code{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);font-weight:600}
+.sci-fee{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green);font-weight:600}
+.sci-desc{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px}
+.sci-spec{font-size:10px;color:var(--muted)}
+.sci-role{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;margin-top:1px}
+.role-p{background:rgba(59,130,246,.15);color:var(--accent2)}
+.role-a{background:rgba(139,92,246,.15);color:var(--purple)}
+.del-btn{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 2px;flex-shrink:0}
+
+/* Role selector */
+.role-sel{display:flex;gap:6px;margin-top:6px}
+.role-opt{flex:1;padding:7px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--muted);font-size:11px;font-family:'IBM Plex Sans',sans-serif;font-weight:600;text-align:center;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.5px}
+.role-opt.rp{background:rgba(59,130,246,.15);border-color:var(--accent);color:var(--accent2)}
+.role-opt.ra{background:rgba(139,92,246,.15);border-color:var(--purple);color:var(--purple)}
+
+/* Buttons */
+.btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s,transform .1s;text-align:center}
+.btn:active{transform:scale(.98);opacity:.85}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-danger{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.btn-green{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)}
+.btn-sm{display:inline-flex;align-items:center;gap:5px;width:auto;padding:6px 12px;font-size:12px;border-radius:7px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Stats grid */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px}
+.stat-label{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-bottom:5px}
+.stat-val{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;line-height:1}
+.stat-sub{font-size:10px;color:var(--muted);margin-top:3px}
+
+/* Period chips */
+.period-bar{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 10px}
+.period-bar::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:5px 12px;border-radius:20px;background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* Case list */
+.case-item{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 15px;margin-bottom:10px;cursor:pointer;transition:border-color .2s}
+.case-item:active{border-color:var(--accent)}
+.ci-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.ci-patient{font-size:14px;font-weight:600;color:var(--text);line-height:1.2}
+.ci-total{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--green);white-space:nowrap;margin-left:10px}
+.ci-date{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:3px}
+.ci-surgeon{font-size:12px;color:var(--muted);margin-bottom:6px}
+.ci-codes{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px}
+.code-pill{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 7px;border-radius:5px;background:rgba(59,130,246,.1);color:var(--accent2);border:1px solid rgba(59,130,246,.2)}
+.ci-meta{display:flex;gap:6px;flex-wrap:wrap}
+.mbadge{font-size:10px;padding:2px 7px;border-radius:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.mb-sp{background:rgba(139,92,246,.12);color:var(--purple)}
+.mb-dur{background:rgba(6,182,212,.12);color:var(--cyan)}
+.mb-pend{background:rgba(245,158,11,.12);color:var(--amber)}
+.mb-done{background:rgba(16,185,129,.12);color:var(--green)}
+
+/* Code browser */
+.sp-group{margin-bottom:16px}
+.sp-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;background:linear-gradient(90deg,var(--surface2),transparent);margin-bottom:6px;cursor:pointer}
+.sp-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text)}
+.sp-count{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.sp-toggle{color:var(--muted);font-size:14px}
+.sp-codes{display:none}
+.sp-codes.open{display:block}
+.cli{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.cli:last-child{border-bottom:none}
+.cli:active{background:var(--surface2)}
+.cli-left{flex:1;margin-right:10px}
+.cli-code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent2);font-weight:600;margin-bottom:2px}
+.cli-desc{font-size:12px;color:var(--text);line-height:1.4}
+.cli-sec{font-size:10px;color:var(--muted);margin-top:1px}
+.cli-fee{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green);font-weight:600;white-space:nowrap}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:200;display:none;align-items:flex-end}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-height:92dvh;overflow-y:auto;padding:18px 16px calc(var(--safe-bottom) + 20px);border-top:1px solid var(--border)}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
+.modal-title{font-family:'Playfair Display',serif;font-size:19px;font-weight:700;margin-bottom:14px}
+.drow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+.drow:last-child{border-bottom:none}
+.dkey{color:var(--muted);flex-shrink:0;margin-right:12px}
+.dval{color:var(--text);font-weight:500;text-align:right;word-break:break-word}
+.dval.mono{font-family:'IBM Plex Mono',monospace;color:var(--green)}
+
+/* Inline total */
+.inline-total{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:2px solid var(--border);margin-top:8px}
+.it-label{font-size:13px;font-weight:600;color:var(--text)}
+.it-val{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--green)}
+
+/* Toast */
+.toast{position:fixed;top:calc(var(--safe-top) + 8px);left:50%;transform:translateX(-50%) translateY(-70px);background:var(--surface2);border:1px solid var(--border);border-radius:24px;padding:9px 18px;font-size:13px;font-weight:500;z-index:500;transition:transform .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.success{color:var(--green);border-color:rgba(16,185,129,.3)}
+.toast.error{color:var(--red);border-color:rgba(239,68,68,.3)}
+.toast.info{color:var(--accent2);border-color:rgba(59,130,246,.3)}
+
+/* Bottom nav */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;padding:6px 0 calc(var(--safe-bottom) + 4px);z-index:150}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;background:none;border:none;cursor:pointer;color:var(--muted);font-size:9px;font-family:'IBM Plex Sans',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.5px;transition:color .2s}
+.nav-btn.active{color:var(--accent2)}
+.nav-btn svg{width:20px;height:20px}
+
+/* Misc */
+.divider{height:1px;background:var(--border);margin:14px 0}
+.sec-div{display:flex;align-items:center;gap:10px;margin:16px 0 12px}
+.sec-div-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+.sec-div-line{flex:1;height:1px;background:var(--border)}
+.empty{text-align:center;padding:50px 20px;color:var(--muted)}
+.empty-icon{font-size:44px;margin-bottom:12px;opacity:.4}
+.empty p{font-size:13px;line-height:1.7}
+.info-banner{background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);border-radius:9px;padding:10px 13px;font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+.info-banner strong{color:var(--accent2)}
+.gap{height:8px}
+.gap2{height:14px}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>Chirurgie<span>QC</span></h1>
+      <p>Facturation RAMQ</p>
+    </div>
+
+    <!-- STEP 1: Email entry -->
+    <div id="step1">
+      <div class="login-card">
+        <h2>Connexion</h2>
+        <p class="sub">Entrez votre adresse courriel. Nous vous enverrons un code de vérification à 6 chiffres.</p>
+        <div class="form-group">
+          <label class="form-label">Adresse courriel</label>
+          <input id="loginEmail" class="form-input" type="email" placeholder="dr.nom@exemple.com"
+            inputmode="email" autocomplete="email" style="font-size:15px"
+            onkeydown="if(event.key==='Enter') sendOTP()"/>
+        </div>
+        <button class="btn btn-primary" id="sendBtn" onclick="sendOTP()">Envoyer le code →</button>
+      </div>
+      <div class="login-note">
+        En mode connecté, vos cas sont sauvegardés sur le serveur et accessibles depuis n'importe quel appareil.
+      </div>
+      <div class="local-mode-btn" onclick="useLocalMode()">Continuer sans connexion (données locales seulement)</div>
+    </div>
+
+    <!-- STEP 2: OTP entry -->
+    <div id="step2" style="display:none">
+      <div class="login-card">
+        <h2>Code de vérification</h2>
+        <p class="sub">Un code à 6 chiffres a été envoyé à<br><strong id="emailDisplay" style="color:var(--text)"></strong></p>
+        <div class="form-group">
+          <label class="form-label">Code de vérification</label>
+          <input id="otpInput" class="otp-input" type="text" placeholder="000000"
+            inputmode="numeric" maxlength="6" autocomplete="one-time-code"
+            oninput="if(this.value.replace(/\D/g,'').length===6){this.value=this.value.replace(/\D/g,'');verifyOTP()}"
+            onkeydown="if(event.key==='Enter') verifyOTP()"/>
+        </div>
+        <button class="btn btn-primary" id="verifyBtn" onclick="verifyOTP()">Vérifier →</button>
+        <div class="gap"></div>
+        <button class="btn btn-secondary" onclick="goBack()" style="font-size:12px;padding:10px">← Changer d'adresse</button>
+      </div>
+      <div class="login-note">
+        Pas reçu le code ? <a onclick="resendOTP()">Renvoyer</a> · Le code expire dans 10 minutes.
+      </div>
+    </div>
+
+  </div>
+</div><!-- /loginScreen -->
+
+<!-- ════════════════════════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════════════════════ -->
+<div id="mainApp">
+
+  <!-- Config warning (shown when Supabase not configured) -->
+  <div id="cfgBanner" class="config-banner" style="display:none">
+    ⚠️ <strong>Mode local</strong> — Supabase non configuré. Données sur cet appareil seulement.
+    <button onclick="this.parentElement.style.display='none'">✕</button>
+  </div>
+
+  <!-- ── HEADER ── -->
+  <div class="app-header">
+    <div class="app-header-top">
+      <div class="app-logo">Chirurgie<span>QC</span><sub>Facturation RAMQ</sub></div>
+      <div class="header-right">
+        <div class="header-total-val" id="hdrTotal">$0,00</div>
+        <div class="header-total-label">Total général</div>
+      </div>
+    </div>
+    <div class="header-user">
+      <span id="hdrUser">Mode local</span>
+      <button class="logout-btn" onclick="logout()">Déconnexion</button>
+    </div>
+  </div>
+
+  <!-- ── TABS ── -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('dashboard')">📊 Tableau</button>
+    <button class="tab-btn" onclick="showTab('add')">➕ Nouveau cas</button>
+    <button class="tab-btn" onclick="showTab('cases')">📋 Mes cas</button>
+    <button class="tab-btn" onclick="showTab('codes')">🔍 Codes RAMQ</button>
+    <button class="tab-btn" onclick="showTab('export')">📤 Exporter</button>
+  </div>
+
+  <!-- ════════════ PAGE: DASHBOARD ════════════ -->
+  <div class="page active" id="page-dashboard">
+    <div class="period-bar">
+      <div class="chip active" onclick="setPeriod('week',this)">Cette semaine</div>
+      <div class="chip" onclick="setPeriod('month',this)">Ce mois</div>
+      <div class="chip" onclick="setPeriod('last30',this)">30 jours</div>
+      <div class="chip" onclick="setPeriod('all',this)">Tout</div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total facturable</div><div class="stat-val" style="color:var(--green)" id="dashTotal">$0</div><div class="stat-sub" id="dashCount">0 cas</div></div>
+      <div class="stat-card"><div class="stat-label">Soumis RAMQ</div><div class="stat-val" style="color:var(--accent2)" id="dashBilled">$0</div><div class="stat-sub" id="dashBilledN">0 soumis</div></div>
+      <div class="stat-card"><div class="stat-label">En attente</div><div class="stat-val" style="color:var(--amber)" id="dashPending">$0</div><div class="stat-sub" id="dashPendingN">0 en attente</div></div>
+      <div class="stat-card"><div class="stat-label">Actes uniques</div><div class="stat-val" style="color:var(--purple)" id="dashActs">0</div><div class="stat-sub">codes RAMQ</div></div>
+    </div>
+    <div class="card"><div class="card-title">Par spécialité</div><div id="dashSpec"></div></div>
+    <div class="card"><div class="card-title">Cas récents</div><div id="dashRecent"></div></div>
+  </div>
+
+  <!-- ════════════ PAGE: ADD CASE ════════════ -->
+  <div class="page" id="page-add">
+    <div class="info-banner"><strong>Saisie d'un cas :</strong> Remplissez les informations, puis cherchez les actes RAMQ par nom ou numéro de code.</div>
+
+    <div class="card">
+      <div class="card-title">Patient</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nom du patient</label><input class="form-input" id="nPatient" placeholder="Nom, Prénom"/></div>
+        <div class="form-group" style="max-width:130px"><label class="form-label">NAM</label><input class="form-input" id="nNAM" placeholder="XXXX 0000 0000"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Date de l'opération</label><input class="form-input" type="date" id="nDate"/></div>
+        <div class="form-group" style="max-width:110px"><label class="form-label">Durée (min)</label><input class="form-input" type="number" id="nDuration" placeholder="90" min="1" inputmode="numeric"/></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Équipe</div>
+      <div class="form-group"><label class="form-label">Chirurgien principal</label><input class="form-input" id="nSurgeon" placeholder="Dr Nom"/></div>
+      <div class="form-group"><label class="form-label">Anesthésiologiste</label><input class="form-input" id="nAnesth" placeholder="Dr Nom"/></div>
+      <div class="form-group"><label class="form-label">Co-chirurgien(s) / Assistant(s)</label><input class="form-input" id="nAssists" placeholder="Dr Nom1, Dr Nom2…"/></div>
+      <div class="form-group"><label class="form-label">Résident / Externe</label><input class="form-input" id="nResident" placeholder="Nom (code 5XXXXX si résident)"/></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Spécialité</div>
+      <select class="form-select" id="nSpecialty" onchange="onSpecialtyChange()">
+        <option value="">— Toutes spécialités —</option>
+        <option>Chirurgie générale</option><option>Chirurgie orthopédique</option>
+        <option>Chirurgie cardiovasculaire et thoracique</option><option>Chirurgie plastique</option>
+        <option>Chirurgie vasculaire</option><option>Neurochirurgie</option>
+        <option>Obstétrique-gynécologie</option><option>Ophtalmologie</option>
+        <option>Oto-rhino-laryngologie</option><option>Urologie</option>
+        <option>Gastro-entérologie</option><option>Anesthésiologie</option>
+        <option>Cardiologie</option><option>Pédiatrie</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Actes RAMQ</div>
+      <div class="form-group">
+        <label class="form-label">Rechercher un acte (nom ou numéro de code)</label>
+        <div class="code-search-wrap">
+          <input class="form-input" id="codeSearch"
+            placeholder="ex: 01236  ou  cholécystectomie  ou  genou laparoscop…"
+            oninput="searchCodes(this.value)" autocomplete="off"/>
+          <div class="code-results" id="codeResults" style="display:none"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Votre rôle pour cet acte</label>
+        <div class="role-sel">
+          <div class="role-opt rp" id="roleP" onclick="setRole('primary')">🔪 Chirurgien principal</div>
+          <div class="role-opt" id="roleA" onclick="setRole('assist')">🤝 Assistant / Co-chir.</div>
+        </div>
+      </div>
+      <div id="selCodes"></div>
+      <div class="inline-total" id="codeTotal" style="display:none">
+        <span class="it-label">Sous-total actes</span>
+        <span class="it-val" id="codeTotalVal">$0,00</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Détails opératoires</div>
+      <div class="form-group"><label class="form-label">Diagnostic / Indication</label><input class="form-input" id="nDiag" placeholder="ex: Appendicite aiguë perforée"/></div>
+      <div class="form-group"><label class="form-label">Notes opératoires</label><textarea class="form-textarea" id="nNotes" placeholder="Détails, complications, particularités…"></textarea></div>
+      <div class="form-group"><label class="form-label">Hôpital / Établissement</label><input class="form-input" id="nHospital" placeholder="ex: CHUM, MUHC, HGJ…"/></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Anesthésie</label>
+          <select class="form-select" id="nAnesthType"><option value="">—</option><option>Générale</option><option>Rachidienne</option><option>Péridurale</option><option>Régionale</option><option>Locale</option><option>MAC</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Approche</label>
+          <select class="form-select" id="nApproach"><option value="">—</option><option>Ouverte</option><option>Laparoscopique</option><option>Robotique</option><option>Endoscopique</option><option>Arthroscopique</option><option>Percutanée</option><option>Vaginale</option></select>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveCase()">💾 Enregistrer le cas</button>
+    <div class="gap"></div>
+    <button class="btn btn-secondary" onclick="clearForm()">↺ Effacer le formulaire</button>
+    <div class="gap2"></div>
+  </div>
+
+  <!-- ════════════ PAGE: CASES ════════════ -->
+  <div class="page" id="page-cases">
+    <div class="period-bar" id="casesPeriodBar">
+      <div class="chip active" onclick="setCasePeriod('week',this)">Cette semaine</div>
+      <div class="chip" onclick="setCasePeriod('month',this)">Ce mois</div>
+      <div class="chip" onclick="setCasePeriod('last30',this)">30 jours</div>
+      <div class="chip" onclick="setCasePeriod('all',this)">Tous</div>
+    </div>
+    <div id="casesList"></div>
+  </div>
+
+  <!-- ════════════ PAGE: CODE BROWSER ════════════ -->
+  <div class="page" id="page-codes">
+    <div class="form-group" style="margin-bottom:10px">
+      <input class="form-input" id="browseQ" placeholder="🔍  Rechercher — nom ou numéro de code…" oninput="renderBrowser(this.value)" style="font-size:14px"/>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <select class="form-select" id="browseSpec" onchange="renderBrowser(document.getElementById('browseQ').value)" style="font-size:13px">
+        <option value="">— Toutes les spécialités —</option>
+      </select>
+    </div>
+    <div id="codeBrowser"></div>
+  </div>
+
+  <!-- ════════════ PAGE: EXPORT ════════════ -->
+  <div class="page" id="page-export">
+    <div class="card">
+      <div class="card-title">Paramètres d'exportation</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Du</label><input class="form-input" type="date" id="expFrom" onchange="updateExpSummary()"/></div>
+        <div class="form-group"><label class="form-label">Au</label><input class="form-input" type="date" id="expTo" onchange="updateExpSummary()"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">Chirurgien (en-tête)</label><input class="form-input" id="expSurgeon" placeholder="Dr Nom Prénom"/></div>
+      <div class="form-group"><label class="form-label">N° de facturation RAMQ</label><input class="form-input" id="expRAMQ" placeholder="00000000" inputmode="numeric"/></div>
+      <div class="form-group"><label class="form-label">Statut</label>
+        <select class="form-select" id="expStatus" onchange="updateExpSummary()">
+          <option value="all">Tous les cas</option>
+          <option value="pending">En attente seulement</option>
+          <option value="billed">Soumis seulement</option>
+        </select>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Résumé</div><div id="expSummary"></div></div>
+    <button class="btn btn-primary" onclick="exportExcel()">📊 Exporter Excel (.xlsx)</button>
+    <div class="gap"></div>
+    <button class="btn btn-secondary" onclick="exportCSV()">📄 Exporter CSV</button>
+    <div class="gap"></div>
+    <button class="btn btn-secondary" onclick="printView()">🖨️ Aperçu imprimable</button>
+    <div class="gap2"></div>
+  </div>
+
+  <!-- ── CASE DETAIL MODAL ── -->
+  <div class="modal-overlay" id="caseModal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-title" id="caseModalTitle"></div>
+      <div id="caseModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ── BOTTOM NAV ── -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" onclick="showTab('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Tableau
+    </button>
+    <button class="nav-btn" onclick="showTab('add')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Nouveau
+    </button>
+    <button class="nav-btn" onclick="showTab('cases')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Cas
+    </button>
+    <button class="nav-btn" onclick="showTab('codes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Codes
+    </button>
+    <button class="nav-btn" onclick="showTab('export')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export
+    </button>
+  </div>
+
+</div><!-- /mainApp -->
+
+<script>
+// ═════════════════════════════════════════════════════════════════════════════
+// SUPABASE CONFIGURATION
+// Replace the two placeholder strings below with your real values from
+// supabase.com → Project Settings → API
+// ═════════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL     = 'VOTRE_SUPABASE_URL';   // ex: https://abcxyz.supabase.co
+const SUPABASE_ANON_KEY = 'VOTRE_SUPABASE_ANON_KEY';
+
+const sb = (SUPABASE_URL.startsWith('VOTRE') || !window.supabase)
+  ? null
+  : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RAMQ PROCEDURE CODE DATABASE
+// Source: Manuel des médecins spécialistes — Rémunération à l'acte (RAMQ, 2025)
+// ═════════════════════════════════════════════════════════════════════════════
+const DB = [
+// ─── CHIRURGIE GÉNÉRALE ───────────────────────────────────────────────────
+{code:"01213",desc:"Appendicectomie",specialty:"Chirurgie générale",section:"Appendice",fee:482.25},
+{code:"01214",desc:"Appendicectomie laparoscopique",specialty:"Chirurgie générale",section:"Appendice",fee:560.10},
+{code:"01215",desc:"Appendicectomie avec péritonite généralisée",specialty:"Chirurgie générale",section:"Appendice",fee:585.40},
+{code:"01236",desc:"Cholécystectomie laparoscopique",specialty:"Chirurgie générale",section:"Voies biliaires",fee:658.75},
+{code:"01237",desc:"Cholécystectomie laparoscopique avec cholangiographie peropératoire",specialty:"Chirurgie générale",section:"Voies biliaires",fee:720.30},
+{code:"01238",desc:"Cholécystectomie ouverte",specialty:"Chirurgie générale",section:"Voies biliaires",fee:590.50},
+{code:"01240",desc:"Cholécystectomie avec exploration voie biliaire principale",specialty:"Chirurgie générale",section:"Voies biliaires",fee:810.25},
+{code:"05044",desc:"Herniorraphie inguinale unilatérale adulte",specialty:"Chirurgie générale",section:"Paroi abdominale",fee:440.65},
+{code:"05050",desc:"Herniorraphie inguinale bilatérale adulte",specialty:"Chirurgie générale",section:"Paroi abdominale",fee:616.90},
+{code:"05052",desc:"Herniorraphie inguinale laparoscopique unilatérale TEP TAPP",specialty:"Chirurgie générale",section:"Paroi abdominale",fee:520.40},
+{code:"05054",desc:"Herniorraphie inguinale laparoscopique bilatérale TEP TAPP",specialty:"Chirurgie générale",section:"Paroi abdominale",fee:710.80},
+{code:"05045",desc:"Herniorraphie ombilicale",specialty:"Chirurgie générale",section:"Paroi abdominale",fee:392.15},
+{code:"05248",desc:"Herniorraphie incisionnelle éventration avec prothèse",specialty:"Chirurgie générale",section:"Paroi abdominale",fee:720.55},
+{code:"05404",desc:"Herniorraphie fémorale unilatérale",specialty:"Chirurgie générale",section:"Paroi abdominale",fee:420.35},
+{code:"01200",desc:"Gastrectomie totale avec anastomose",specialty:"Chirurgie générale",section:"Estomac",fee:1450.80},
+{code:"01201",desc:"Gastrectomie partielle distale anastomose gastro-jéjunale Billroth II",specialty:"Chirurgie générale",section:"Estomac",fee:1250.60},
+{code:"01205",desc:"Gastrectomie partielle Billroth I",specialty:"Chirurgie générale",section:"Estomac",fee:1150.40},
+{code:"01217",desc:"Bypass gastrique Roux-en-Y laparoscopique",specialty:"Chirurgie générale",section:"Estomac",fee:1620.75},
+{code:"01220",desc:"Sleeve gastrectomie laparoscopique gastrectomie en manchon",specialty:"Chirurgie générale",section:"Estomac",fee:1480.30},
+{code:"01221",desc:"Fundoplicature de Nissen laparoscopique reflux gastro-oesophagien",specialty:"Chirurgie générale",section:"Oesophage",fee:890.25},
+{code:"01105",desc:"Oesophagectomie transhiatale",specialty:"Chirurgie générale",section:"Oesophage",fee:1980.50},
+{code:"01106",desc:"Oesophagectomie transthoracique Ivor Lewis",specialty:"Chirurgie générale",section:"Oesophage",fee:2150.90},
+{code:"05455",desc:"Colectomie droite hémicolectomie droite ouverte",specialty:"Chirurgie générale",section:"Intestin",fee:1050.40},
+{code:"05462",desc:"Colectomie droite hémicolectomie droite laparoscopique",specialty:"Chirurgie générale",section:"Intestin",fee:1210.75},
+{code:"05468",desc:"Colectomie gauche hémicolectomie gauche laparoscopique",specialty:"Chirurgie générale",section:"Intestin",fee:1250.30},
+{code:"05471",desc:"Colectomie sigmoïde sigmoidectomie laparoscopique",specialty:"Chirurgie générale",section:"Intestin",fee:1180.90},
+{code:"05477",desc:"Colectomie totale laparoscopique",specialty:"Chirurgie générale",section:"Intestin",fee:1680.45},
+{code:"02383",desc:"Résection antérieure du rectum laparoscopique RAR",specialty:"Chirurgie générale",section:"Rectum",fee:1820.60},
+{code:"02384",desc:"Résection abdominopérinéale Miles laparoscopique",specialty:"Chirurgie générale",section:"Rectum",fee:1950.80},
+{code:"02385",desc:"Résection antérieure basse rectum anastomose colo-anale",specialty:"Chirurgie générale",section:"Rectum",fee:2100.25},
+{code:"01245",desc:"Hépatectomie majeure résection hépatique 3 segments ou plus",specialty:"Chirurgie générale",section:"Foie",fee:2250.75},
+{code:"01246",desc:"Résection hépatique mineure 2 segments ou moins",specialty:"Chirurgie générale",section:"Foie",fee:1480.50},
+{code:"01250",desc:"Pancréaticoduodénectomie Whipple",specialty:"Chirurgie générale",section:"Pancréas",fee:2850.90},
+{code:"01251",desc:"Pancréatectomie distale avec splénectomie",specialty:"Chirurgie générale",section:"Pancréas",fee:1680.40},
+{code:"01260",desc:"Splénectomie ouverte",specialty:"Chirurgie générale",section:"Système lymphatique",fee:690.50},
+{code:"01261",desc:"Splénectomie laparoscopique",specialty:"Chirurgie générale",section:"Système lymphatique",fee:820.75},
+{code:"05144",desc:"Laparotomie exploratrice",specialty:"Chirurgie générale",section:"Abdomen",fee:580.30},
+{code:"05463",desc:"Laparoscopie diagnostique",specialty:"Chirurgie générale",section:"Abdomen",fee:385.60},
+{code:"05410",desc:"Stomie colostomie iléostomie création",specialty:"Chirurgie générale",section:"Intestin",fee:720.40},
+{code:"05415",desc:"Fermeture de stomie",specialty:"Chirurgie générale",section:"Intestin",fee:680.80},
+{code:"01190",desc:"Résection et anastomose intestinale urgence perforation",specialty:"Chirurgie générale",section:"Intestin",fee:820.65},
+{code:"09337",desc:"Drainage abcès intra-abdominal laparoscopique",specialty:"Chirurgie générale",section:"Abdomen",fee:680.25},
+{code:"20127",desc:"Perforation ulcère gastroduodénal patch omentum",specialty:"Chirurgie générale",section:"Estomac",fee:780.40},
+{code:"05500",desc:"Mastectomie totale simple",specialty:"Chirurgie générale",section:"Seins",fee:720.80},
+{code:"05501",desc:"Mastectomie radicale modifiée Patey",specialty:"Chirurgie générale",section:"Seins",fee:950.40},
+{code:"05502",desc:"Tumorectomie avec curage ganglionnaire axillaire",specialty:"Chirurgie générale",section:"Seins",fee:680.60},
+{code:"05503",desc:"Biopsie ganglion sentinelle sein",specialty:"Chirurgie générale",section:"Seins",fee:520.30},
+{code:"05510",desc:"Thyroïdectomie totale",specialty:"Chirurgie générale",section:"Thyroïde",fee:810.55},
+{code:"05511",desc:"Hémi-thyroïdectomie lobectomie thyroïdienne",specialty:"Chirurgie générale",section:"Thyroïde",fee:650.40},
+{code:"05512",desc:"Reprise thyroïdectomie",specialty:"Chirurgie générale",section:"Thyroïde",fee:960.75},
+{code:"05520",desc:"Parathyroïdectomie",specialty:"Chirurgie générale",section:"Parathyroïde",fee:720.30},
+{code:"05530",desc:"Surrénalectomie laparoscopique unilatérale",specialty:"Chirurgie générale",section:"Surrénales",fee:980.60},
+{code:"05145",desc:"Trachéotomie chirurgicale",specialty:"Chirurgie générale",section:"Trachée",fee:490.25},
+{code:"01300",desc:"Cure chirurgicale mégacôlon opération Hartmann",specialty:"Chirurgie générale",section:"Intestin",fee:1250.80},
+{code:"04758",desc:"Hémorroïdectomie Milligan-Morgan technique fermée",specialty:"Chirurgie générale",section:"Anus",fee:450.35},
+{code:"04759",desc:"Hémorroïdopexie par agrafage PPH",specialty:"Chirurgie générale",section:"Anus",fee:520.60},
+{code:"00493",desc:"Fistulotomie anale",specialty:"Chirurgie générale",section:"Anus",fee:380.40},
+{code:"00495",desc:"Sphinctérotomie latérale interne fissure anale",specialty:"Chirurgie générale",section:"Anus",fee:340.25},
+{code:"00276",desc:"Drainage sinus pilonidal",specialty:"Chirurgie générale",section:"Peau",fee:320.40},
+// ─── CHIRURGIE ORTHOPÉDIQUE ──────────────────────────────────────────────
+{code:"00746",desc:"Prothèse totale de hanche PTH primaire non cimentée",specialty:"Chirurgie orthopédique",section:"Hanche",fee:1380.75},
+{code:"00747",desc:"Prothèse totale de hanche PTH primaire cimentée",specialty:"Chirurgie orthopédique",section:"Hanche",fee:1380.75},
+{code:"00749",desc:"Reprise révision prothèse totale de hanche PTH",specialty:"Chirurgie orthopédique",section:"Hanche",fee:1960.40},
+{code:"00750",desc:"Hémiarthroplastie de hanche prothèse fémorale",specialty:"Chirurgie orthopédique",section:"Hanche",fee:980.50},
+{code:"00777",desc:"Prothèse totale du genou PTG primaire",specialty:"Chirurgie orthopédique",section:"Genou",fee:1450.60},
+{code:"00778",desc:"Reprise révision prothèse totale du genou PTG",specialty:"Chirurgie orthopédique",section:"Genou",fee:2050.80},
+{code:"00779",desc:"Arthroplastie unicompartimentale du genou UNI",specialty:"Chirurgie orthopédique",section:"Genou",fee:1150.40},
+{code:"01011",desc:"Reconstruction ligament croisé antérieur LCA arthroscopique",specialty:"Chirurgie orthopédique",section:"Genou",fee:820.65},
+{code:"01015",desc:"Méniscectomie arthroscopique partielle totale",specialty:"Chirurgie orthopédique",section:"Genou",fee:620.30},
+{code:"01016",desc:"Réparation méniscale arthroscopique",specialty:"Chirurgie orthopédique",section:"Genou",fee:720.45},
+{code:"01017",desc:"Chondroplastie arthroscopique genou microfractures",specialty:"Chirurgie orthopédique",section:"Genou",fee:680.30},
+{code:"01020",desc:"Arthroscopie diagnostique du genou",specialty:"Chirurgie orthopédique",section:"Genou",fee:420.15},
+{code:"00855",desc:"Prothèse totale épaule anatomique arthroplastie épaule",specialty:"Chirurgie orthopédique",section:"Épaule",fee:1280.55},
+{code:"00856",desc:"Prothèse totale épaule inversée",specialty:"Chirurgie orthopédique",section:"Épaule",fee:1380.75},
+{code:"00857",desc:"Réparation coiffe des rotateurs ouverte arthroscopique",specialty:"Chirurgie orthopédique",section:"Épaule",fee:780.40},
+{code:"00858",desc:"Acromioplastie arthroscopique bursectomie sous-acromiale",specialty:"Chirurgie orthopédique",section:"Épaule",fee:580.30},
+{code:"00860",desc:"Stabilisation épaule Latarjet Bankart arthroscopique instabilité",specialty:"Chirurgie orthopédique",section:"Épaule",fee:820.65},
+{code:"00863",desc:"Arthroscopie diagnostique épaule",specialty:"Chirurgie orthopédique",section:"Épaule",fee:420.25},
+{code:"00900",desc:"Ostéosynthèse fracture col du fémur vissage cannulé",specialty:"Chirurgie orthopédique",section:"Hanche",fee:780.45},
+{code:"00905",desc:"Ostéosynthèse fracture péritrochantérienne clou gamma DHS",specialty:"Chirurgie orthopédique",section:"Hanche",fee:850.60},
+{code:"00910",desc:"Enclouage centromédullaire fémur",specialty:"Chirurgie orthopédique",section:"Fémur",fee:920.75},
+{code:"00915",desc:"Enclouage centromédullaire tibia",specialty:"Chirurgie orthopédique",section:"Tibia",fee:880.40},
+{code:"00920",desc:"Ostéosynthèse fracture radius distal plaque verrouillée",specialty:"Chirurgie orthopédique",section:"Avant-bras",fee:620.30},
+{code:"00925",desc:"Ostéosynthèse fracture deux os avant-bras plaques",specialty:"Chirurgie orthopédique",section:"Avant-bras",fee:780.55},
+{code:"00930",desc:"Ostéosynthèse fracture cheville bi tri malléolaire",specialty:"Chirurgie orthopédique",section:"Cheville",fee:750.40},
+{code:"00935",desc:"Fixateur externe pose",specialty:"Chirurgie orthopédique",section:"Divers",fee:680.30},
+{code:"00940",desc:"Arthrodèse vertébrale lombaire postérieure instrumentée PLIF TLIF 1-2 niveaux",specialty:"Chirurgie orthopédique",section:"Colonne vertébrale",fee:1950.80},
+{code:"00941",desc:"Arthrodèse vertébrale cervicale antérieure ACDF 1 niveau discectomie fusion",specialty:"Chirurgie orthopédique",section:"Colonne vertébrale",fee:1280.60},
+{code:"00942",desc:"Discectomie lombaire microdiscectomie 1 niveau hernie discale",specialty:"Chirurgie orthopédique",section:"Colonne vertébrale",fee:820.45},
+{code:"00943",desc:"Laminectomie décompression lombaire sténose",specialty:"Chirurgie orthopédique",section:"Colonne vertébrale",fee:980.60},
+{code:"01216",desc:"Hallux valgus ostéotomie métatarsienne Scarf Chevron",specialty:"Chirurgie orthopédique",section:"Pied",fee:650.40},
+{code:"06062",desc:"Décompression canal carpien syndrome du canal carpien",specialty:"Chirurgie orthopédique",section:"Main et poignet",fee:380.25},
+{code:"06063",desc:"Arthroscopie du poignet diagnostique",specialty:"Chirurgie orthopédique",section:"Main et poignet",fee:520.40},
+{code:"07068",desc:"Libération épicondylite latérale tennis elbow médiale golf",specialty:"Chirurgie orthopédique",section:"Coude",fee:420.30},
+// ─── CHIRURGIE CARDIOVASCULAIRE ET THORACIQUE ────────────────────────────
+{code:"03850",desc:"Pontage aortocoronarien PAC CABG 1 artère",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie coronarienne",fee:2480.50},
+{code:"03851",desc:"Pontage aortocoronarien PAC CABG 2 artères",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie coronarienne",fee:2780.90},
+{code:"03852",desc:"Pontage aortocoronarien PAC CABG 3 artères ou plus",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie coronarienne",fee:3150.60},
+{code:"03860",desc:"Remplacement valvulaire aortique RVA avec CEC",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie valvulaire",fee:2980.75},
+{code:"03862",desc:"Remplacement valvulaire mitral RVM avec CEC",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie valvulaire",fee:3050.80},
+{code:"03864",desc:"Réparation plastie valvulaire mitrale",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie valvulaire",fee:3280.60},
+{code:"03866",desc:"Double remplacement valvulaire aortique mitral",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie valvulaire",fee:3780.90},
+{code:"03870",desc:"Pontage PAC combiné remplacement valvulaire",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie coronarienne",fee:4150.50},
+{code:"03880",desc:"Remplacement aorte ascendante Bentall Tirone David",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Aorte",fee:3580.75},
+{code:"03881",desc:"Remplacement arche aortique arrêt circulatoire hypothermie",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Aorte",fee:4250.80},
+{code:"03882",desc:"Dissection aortique type A réparation urgence",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Aorte",fee:4680.90},
+{code:"03883",desc:"TAVI remplacement valvulaire aortique transcathéter",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Chirurgie valvulaire",fee:2850.40},
+{code:"03890",desc:"Transplantation cardiaque greffe cardiaque",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Transplantation",fee:5800.50},
+{code:"03895",desc:"Fenêtre péricardique péricardiotomie chirurgicale tamponnade",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Péricarde",fee:980.60},
+{code:"04500",desc:"Lobectomie pulmonaire ouverte thoracotomie",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Poumons et plèvre",fee:1650.80},
+{code:"04501",desc:"Lobectomie pulmonaire VATS vidéo-assistée thoracoscopique",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Poumons et plèvre",fee:1850.60},
+{code:"04502",desc:"Pneumonectomie",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Poumons et plèvre",fee:2180.90},
+{code:"04503",desc:"Résection en coin segmentectomie pulmonaire VATS",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Poumons et plèvre",fee:1280.40},
+{code:"04505",desc:"Décortication pleurale empyème",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Plèvre",fee:1080.55},
+{code:"04506",desc:"Pleurectomie symphyse pleurale VATS pneumothorax",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Plèvre",fee:980.40},
+{code:"04507",desc:"Thymectomie résection thymique VATS",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Médiastin",fee:1380.70},
+{code:"04662",desc:"ECMO canulation chirurgicale veino-artérielle veino-veineuse",specialty:"Chirurgie cardiovasculaire et thoracique",section:"Actes généraux",fee:1250.80},
+// ─── CHIRURGIE VASCULAIRE ────────────────────────────────────────────────
+{code:"04701",desc:"Pontage aorto-bifémoral prothèse tubulaire bifurquée",specialty:"Chirurgie vasculaire",section:"Membres inférieurs",fee:2150.80},
+{code:"04702",desc:"Pontage fémoro-poplité sus-articulaire veine prothèse",specialty:"Chirurgie vasculaire",section:"Membres inférieurs",fee:1380.60},
+{code:"04703",desc:"Pontage fémoro-poplité sous-articulaire",specialty:"Chirurgie vasculaire",section:"Membres inférieurs",fee:1580.75},
+{code:"04705",desc:"Endartériectomie carotidienne EAC",specialty:"Chirurgie vasculaire",section:"Carotide",fee:1250.40},
+{code:"04706",desc:"Stenting carotidien CAS angioplastie carotide",specialty:"Chirurgie vasculaire",section:"Carotide",fee:1150.30},
+{code:"04710",desc:"EVAR réparation endovasculaire anévrisme aortique abdominal AAA",specialty:"Chirurgie vasculaire",section:"Aorte",fee:2380.60},
+{code:"04711",desc:"Réparation ouverte anévrisme aortique abdominal AAA",specialty:"Chirurgie vasculaire",section:"Aorte",fee:2750.80},
+{code:"04715",desc:"Amputation trans-tibiale below-knee",specialty:"Chirurgie vasculaire",section:"Membres inférieurs",fee:820.45},
+{code:"04716",desc:"Amputation fémorale above-knee",specialty:"Chirurgie vasculaire",section:"Membres inférieurs",fee:780.35},
+{code:"04720",desc:"Fistule artério-veineuse FAV hémodialyse création",specialty:"Chirurgie vasculaire",section:"Accès vasculaire",fee:680.50},
+{code:"04721",desc:"Révision fistule artério-veineuse FAV hémodialyse",specialty:"Chirurgie vasculaire",section:"Accès vasculaire",fee:580.40},
+{code:"04725",desc:"Embolectomie artérielle membres inférieurs Fogarty",specialty:"Chirurgie vasculaire",section:"Membres inférieurs",fee:980.60},
+{code:"04730",desc:"Stripping saphène varices",specialty:"Chirurgie vasculaire",section:"Veines et varices",fee:620.30},
+{code:"04731",desc:"Phlébectomie ambulatoire varices",specialty:"Chirurgie vasculaire",section:"Veines et varices",fee:450.20},
+{code:"04732",desc:"Ablation thermique laser RF saphène interne varices",specialty:"Chirurgie vasculaire",section:"Veines et varices",fee:580.40},
+// ─── NEUROCHIRURGIE ──────────────────────────────────────────────────────
+{code:"16800",desc:"Craniotomie tumeur sus-tentorielle",specialty:"Neurochirurgie",section:"Crâne et encéphale",fee:2450.80},
+{code:"16801",desc:"Craniotomie tumeur sous-tentorielle fosse postérieure",specialty:"Neurochirurgie",section:"Crâne et encéphale",fee:2680.90},
+{code:"16802",desc:"Biopsie cérébrale stéréotaxique",specialty:"Neurochirurgie",section:"Neurochirurgie fonctionnelle",fee:1250.60},
+{code:"16803",desc:"Drainage hématome sous-dural chronique HSDC burr hole",specialty:"Neurochirurgie",section:"Lésions traumatiques",fee:1150.40},
+{code:"16804",desc:"Évacuation hématome épidural HED sous-dural aigu HSDA",specialty:"Neurochirurgie",section:"Lésions traumatiques",fee:1480.60},
+{code:"16810",desc:"Clippage anévrisme intracrânien",specialty:"Neurochirurgie",section:"Lésions vasculaires",fee:3280.80},
+{code:"16815",desc:"Résection malformation artérioveineuse MAV cérébrale",specialty:"Neurochirurgie",section:"Lésions vasculaires",fee:2980.70},
+{code:"16820",desc:"Dérivation ventriculo-péritonéale DVP hydrocéphalie pose révision",specialty:"Neurochirurgie",section:"LCR",fee:980.55},
+{code:"16825",desc:"Dérivation ventriculaire externe DVE",specialty:"Neurochirurgie",section:"LCR",fee:780.40},
+{code:"17134",desc:"Microchirurgie discale lombaire herniorraphie discale hernie discale lombaire",specialty:"Neurochirurgie",section:"Rachis",fee:1050.65},
+{code:"17135",desc:"Microdiscectomie cervicale arthrodèse ACDF 1 niveau",specialty:"Neurochirurgie",section:"Rachis",fee:1480.80},
+{code:"17147",desc:"Laminectomie cervicale décompressive",specialty:"Neurochirurgie",section:"Rachis",fee:1150.50},
+{code:"17148",desc:"Laminectomie lombaire instrumentation PLIF TLIF 1-2 niveaux",specialty:"Neurochirurgie",section:"Rachis",fee:2250.80},
+{code:"17150",desc:"Stimulateur médullaire implantation lead générateur",specialty:"Neurochirurgie",section:"Neurochirurgie fonctionnelle",fee:1650.60},
+{code:"17043",desc:"Stimulation cérébrale profonde DBS implantation bilatérale Parkinson",specialty:"Neurochirurgie",section:"Neurochirurgie fonctionnelle",fee:3480.90},
+{code:"17093",desc:"Décompression microvasculaire nerf trijumeau Jannetta névralgie",specialty:"Neurochirurgie",section:"Nerfs crâniens",fee:1980.75},
+// ─── OBSTÉTRIQUE-GYNÉCOLOGIE ─────────────────────────────────────────────
+{code:"06900",desc:"Accouchement vaginal normal surveillance travail",specialty:"Obstétrique-gynécologie",section:"Obstétrique",fee:380.40},
+{code:"06901",desc:"Accouchement forceps ventouse extraction instrumentale",specialty:"Obstétrique-gynécologie",section:"Obstétrique",fee:520.65},
+{code:"06910",desc:"Césarienne segmentaire basse primaire",specialty:"Obstétrique-gynécologie",section:"Obstétrique",fee:680.80},
+{code:"06911",desc:"Césarienne itérative 2e ou plus",specialty:"Obstétrique-gynécologie",section:"Obstétrique",fee:680.80},
+{code:"06912",desc:"Césarienne hystérectomie hémostase",specialty:"Obstétrique-gynécologie",section:"Obstétrique",fee:1350.60},
+{code:"06929",desc:"Manoeuvre obstétricale intra-partum version par manoeuvre externe",specialty:"Obstétrique-gynécologie",section:"Obstétrique",fee:280.45},
+{code:"06945",desc:"Accouchement cas complexe siège grossesse multiple",specialty:"Obstétrique-gynécologie",section:"Obstétrique",fee:520.80},
+{code:"06850",desc:"Hystérectomie abdominale totale HAT",specialty:"Obstétrique-gynécologie",section:"Utérus",fee:980.65},
+{code:"06851",desc:"Hystérectomie vaginale colpopérinéorraphie",specialty:"Obstétrique-gynécologie",section:"Utérus",fee:1050.75},
+{code:"06852",desc:"Hystérectomie laparoscopique totale HLT",specialty:"Obstétrique-gynécologie",section:"Utérus",fee:1180.80},
+{code:"06853",desc:"Hystérectomie laparoscopique robotique",specialty:"Obstétrique-gynécologie",section:"Utérus",fee:1280.90},
+{code:"06860",desc:"Myomectomie abdominale fibrome utérin",specialty:"Obstétrique-gynécologie",section:"Utérus",fee:820.55},
+{code:"06861",desc:"Myomectomie laparoscopique fibrome utérin",specialty:"Obstétrique-gynécologie",section:"Utérus",fee:980.65},
+{code:"06870",desc:"Salpingo-ovariectomie bilatérale laparoscopique",specialty:"Obstétrique-gynécologie",section:"Ovaires",fee:680.45},
+{code:"06871",desc:"Ovariectomie kystectomie ovarienne laparoscopique unilatérale",specialty:"Obstétrique-gynécologie",section:"Ovaires",fee:580.35},
+{code:"06880",desc:"Cure prolapsus génital TVT TOT bandelette sous-urétrale incontinence",specialty:"Obstétrique-gynécologie",section:"Vagin",fee:720.50},
+{code:"06881",desc:"Colpopérinéorraphie antérieure postérieure prolapsus",specialty:"Obstétrique-gynécologie",section:"Vagin",fee:680.40},
+{code:"06885",desc:"Conisation cervicale LEEP bistouri dysplasie col",specialty:"Obstétrique-gynécologie",section:"Col utérin",fee:380.25},
+{code:"06890",desc:"Hystéroscopie opératoire polypectomie myomectomie",specialty:"Obstétrique-gynécologie",section:"Utérus",fee:480.40},
+{code:"06895",desc:"Ligature tubaire laparoscopique Filshie salpingectomie stérilisation",specialty:"Obstétrique-gynécologie",section:"Trompes",fee:380.30},
+{code:"06896",desc:"Salpingectomie bilatérale laparoscopique stérilisation définitive",specialty:"Obstétrique-gynécologie",section:"Trompes",fee:480.40},
+{code:"06905",desc:"Salpingostomie salpingectomie laparoscopique grossesse ectopique",specialty:"Obstétrique-gynécologie",section:"Trompes",fee:680.55},
+{code:"06915",desc:"Curetage utérin IVG interruption volontaire grossesse FCS",specialty:"Obstétrique-gynécologie",section:"Utérus",fee:280.30},
+{code:"06925",desc:"Réparation lacérations périnéales sévères grade 3-4",specialty:"Obstétrique-gynécologie",section:"Obstétrique",fee:380.35},
+// ─── OPHTALMOLOGIE ───────────────────────────────────────────────────────
+{code:"07000",desc:"Phacoémulsification cristallin implant cataracte",specialty:"Ophtalmologie",section:"Cristallin",fee:320.80},
+{code:"07001",desc:"Chirurgie cataracte implant torique multifocal",specialty:"Ophtalmologie",section:"Cristallin",fee:380.90},
+{code:"07010",desc:"Vitrectomie postérieure pars plana PPV décollement de rétine",specialty:"Ophtalmologie",section:"Corps vitré / Rétine",fee:980.60},
+{code:"07011",desc:"Vitrectomie tamponnement gaz huile silicone décollement rétinien",specialty:"Ophtalmologie",section:"Corps vitré / Rétine",fee:1050.75},
+{code:"07012",desc:"Vitrectomie membrane épirétinienne trou maculaire",specialty:"Ophtalmologie",section:"Corps vitré / Rétine",fee:920.55},
+{code:"07015",desc:"Rétinopexie pneumatique décollement rétinien",specialty:"Ophtalmologie",section:"Rétine",fee:580.40},
+{code:"07020",desc:"Trabéculectomie glaucome",specialty:"Ophtalmologie",section:"Glaucome",fee:720.50},
+{code:"07021",desc:"Implant drainage glaucome Ahmed Baerveldt",specialty:"Ophtalmologie",section:"Glaucome",fee:820.60},
+{code:"07025",desc:"Kératoplastie transfixiante greffe de cornée",specialty:"Ophtalmologie",section:"Cornée",fee:1080.75},
+{code:"07026",desc:"Kératoplastie lamellaire endothéliale DSAEK DMEK greffe cornée",specialty:"Ophtalmologie",section:"Cornée",fee:1150.80},
+{code:"07030",desc:"Chirurgie strabisme résection recul musculaire",specialty:"Ophtalmologie",section:"Muscles oculaires",fee:580.45},
+{code:"07035",desc:"Énucléation globe oculaire implant orbital",specialty:"Ophtalmologie",section:"Globe oculaire",fee:680.55},
+{code:"07040",desc:"Correction ptosis résection releveur",specialty:"Ophtalmologie",section:"Paupières",fee:480.35},
+{code:"07045",desc:"Entropion ectropion correction chirurgicale",specialty:"Ophtalmologie",section:"Paupières",fee:420.30},
+{code:"07050",desc:"Dacryocystorhinostomie DCR voie externe endo-nasale",specialty:"Ophtalmologie",section:"Appareil lacrymal",fee:580.40},
+{code:"07060",desc:"Injection intravitréenne Avastin Lucentis Eylea DMLA",specialty:"Ophtalmologie",section:"Rétine",fee:85.50},
+{code:"07065",desc:"Photocoagulation rétinienne laser diabétique rétinopathie",specialty:"Ophtalmologie",section:"Rétine",fee:180.40},
+{code:"07074",desc:"Kératectomie photothérapeutique PTK PRK laser excimer",specialty:"Ophtalmologie",section:"Cornée",fee:280.55},
+{code:"07077",desc:"Tubes transtympaniques grommets sous anesthésie générale",specialty:"Ophtalmologie",section:"Cristallin",fee:250.30},
+// ─── OTO-RHINO-LARYNGOLOGIE ──────────────────────────────────────────────
+{code:"07500",desc:"Amygdalectomie tonsillectomie adulte enfant",specialty:"Oto-rhino-laryngologie",section:"Amygdales",fee:320.45},
+{code:"07501",desc:"Adénoïdectomie végétations",specialty:"Oto-rhino-laryngologie",section:"Adénoïdes",fee:220.30},
+{code:"07502",desc:"Adéno-amygdalectomie amygdalectomie adénoïdectomie",specialty:"Oto-rhino-laryngologie",section:"Amygdales",fee:380.55},
+{code:"07510",desc:"Septoplastie déviation septale",specialty:"Oto-rhino-laryngologie",section:"Nez",fee:420.40},
+{code:"07511",desc:"Septoplastie turbinoplastie réduction cornets",specialty:"Oto-rhino-laryngologie",section:"Nez",fee:520.55},
+{code:"07512",desc:"Rhinoplastie fonctionnelle reconstruction nasale",specialty:"Oto-rhino-laryngologie",section:"Nez",fee:780.65},
+{code:"07515",desc:"Chirurgie endoscopique sinus FESS CES unilatérale sinusite chronique",specialty:"Oto-rhino-laryngologie",section:"Sinus",fee:620.50},
+{code:"07516",desc:"Chirurgie endoscopique sinus FESS CES bilatérale sinusite chronique",specialty:"Oto-rhino-laryngologie",section:"Sinus",fee:820.70},
+{code:"07520",desc:"Tympanoplastie myringoplastie perforation tympan",specialty:"Oto-rhino-laryngologie",section:"Oreille moyenne",fee:680.55},
+{code:"07521",desc:"Tympanoplastie mastoïdectomie cholestéatome",specialty:"Oto-rhino-laryngologie",section:"Oreille moyenne",fee:980.75},
+{code:"07522",desc:"Mastoïdectomie radicale modifiée",specialty:"Oto-rhino-laryngologie",section:"Oreille moyenne",fee:1080.80},
+{code:"07523",desc:"Stapédectomie stapédotomie otosclérose",specialty:"Oto-rhino-laryngologie",section:"Oreille interne",fee:820.65},
+{code:"07525",desc:"Implant cochléaire chirurgie implantation surdité",specialty:"Oto-rhino-laryngologie",section:"Oreille interne",fee:1250.80},
+{code:"07530",desc:"Laryngoscopie directe biopsie exérèse lésion laryngée",specialty:"Oto-rhino-laryngologie",section:"Larynx",fee:520.45},
+{code:"07531",desc:"Laryngectomie totale cancer larynx",specialty:"Oto-rhino-laryngologie",section:"Larynx",fee:1980.80},
+{code:"07532",desc:"Laryngectomie partielle hémilaryngectomie supraglottique",specialty:"Oto-rhino-laryngologie",section:"Larynx",fee:1480.65},
+{code:"07535",desc:"Parotidectomie superficielle préservation nerf facial",specialty:"Oto-rhino-laryngologie",section:"Glandes salivaires",fee:920.60},
+{code:"07536",desc:"Parotidectomie totale dissection nerf facial",specialty:"Oto-rhino-laryngologie",section:"Glandes salivaires",fee:1280.80},
+{code:"07540",desc:"Évidement cervical curage ganglionnaire cervical unilatéral",specialty:"Oto-rhino-laryngologie",section:"Cou",fee:1180.75},
+{code:"07541",desc:"Évidement cervical bilatéral curage ganglionnaire cervical bilatéral",specialty:"Oto-rhino-laryngologie",section:"Cou",fee:1680.90},
+{code:"07545",desc:"Uvulopharyngoplastie UPPP ronflements apnée du sommeil SAOS",specialty:"Oto-rhino-laryngologie",section:"Pharynx",fee:680.50},
+{code:"07550",desc:"Tubes transtympaniques grommets bilatéraux otites séreuses enfant",specialty:"Oto-rhino-laryngologie",section:"Oreille moyenne",fee:250.30},
+{code:"07555",desc:"Résection glande sous-mandibulaire submandibulaire lithiase",specialty:"Oto-rhino-laryngologie",section:"Glandes salivaires",fee:720.55},
+// ─── UROLOGIE ────────────────────────────────────────────────────────────
+{code:"08100",desc:"Prostatectomie radicale rétropubienne cancer prostate",specialty:"Urologie",section:"Prostate",fee:1480.80},
+{code:"08101",desc:"Prostatectomie radicale laparoscopique robotique",specialty:"Urologie",section:"Prostate",fee:1680.90},
+{code:"08105",desc:"Résection transurétrale prostate RTUP TURP HBP",specialty:"Urologie",section:"Prostate",fee:680.55},
+{code:"08106",desc:"Énucléation prostate laser HoLEP",specialty:"Urologie",section:"Prostate",fee:980.70},
+{code:"08110",desc:"Cystectomie radicale dérivation urinaire iléo-conduit Bricker",specialty:"Urologie",section:"Vessie",fee:2850.90},
+{code:"08111",desc:"Résection transurétrale tumeur vessie RTUVB TURBT cancer",specialty:"Urologie",section:"Vessie",fee:580.45},
+{code:"08115",desc:"Néphro-urétérectomie radicale tumeur urothéliale voie excrétrice",specialty:"Urologie",section:"Rein",fee:1680.80},
+{code:"08120",desc:"Néphrectomie radicale laparoscopique cancer rein",specialty:"Urologie",section:"Rein",fee:1350.70},
+{code:"08121",desc:"Néphrectomie partielle laparoscopique robotique cancer rein",specialty:"Urologie",section:"Rein",fee:1550.85},
+{code:"08125",desc:"Transplantation rénale greffe rénale receveur",specialty:"Urologie",section:"Rein",fee:2850.75},
+{code:"08130",desc:"Lithotritie extracorporelle ESWL calcul rein uretère",specialty:"Urologie",section:"Lithiase",fee:320.40},
+{code:"08131",desc:"Urétéroscopie souple lithotritie laser lithiase urétérale calcul",specialty:"Urologie",section:"Lithiase",fee:680.55},
+{code:"08132",desc:"Néphrostolithotomie percutanée NLPC calcul corallien",specialty:"Urologie",section:"Lithiase",fee:1250.75},
+{code:"08135",desc:"Pose sonde double J urétérale",specialty:"Urologie",section:"Uretère",fee:280.35},
+{code:"08140",desc:"Orchidectomie radicale tumeur testiculaire cancer testicule",specialty:"Urologie",section:"Testicules",fee:480.45},
+{code:"08141",desc:"Orchidopexie testicule non descendu cryptorchidie torsion",specialty:"Urologie",section:"Testicules",fee:380.35},
+{code:"08142",desc:"Varicocèle testiculaire varicocèle correction chirurgicale",specialty:"Urologie",section:"Veines",fee:380.30},
+{code:"08145",desc:"Vasectomie bilatérale",specialty:"Urologie",section:"Canal déférent",fee:220.25},
+{code:"08148",desc:"Implant pénien prothèse érectile gonflable 3 pièces",specialty:"Urologie",section:"Pénis",fee:980.65},
+{code:"08150",desc:"Sphincter urinaire artificiel implantation incontinence",specialty:"Urologie",section:"Urètre",fee:1150.75},
+{code:"08155",desc:"Uréthroplastie sténose urétrale Barbagli greffe buccale",specialty:"Urologie",section:"Urètre",fee:1280.80},
+{code:"08165",desc:"Cystoscopie rigide diagnostique",specialty:"Urologie",section:"Endoscopie",fee:185.25},
+{code:"08166",desc:"Cystoscopie souple diagnostique",specialty:"Urologie",section:"Endoscopie",fee:175.20},
+// ─── CHIRURGIE PLASTIQUE ─────────────────────────────────────────────────
+{code:"02350",desc:"Couverture plaie lambeau local avancement rotation",specialty:"Chirurgie plastique",section:"Peau",fee:680.50},
+{code:"02352",desc:"Lambeau de perforateur pédiculé LICAP TDAP IGAP",specialty:"Chirurgie plastique",section:"Microchirurgie",fee:1380.75},
+{code:"02354",desc:"Lambeau libre micro-anastomosé DIEP ALT grand dorsal microchirurgie",specialty:"Chirurgie plastique",section:"Microchirurgie",fee:2850.90},
+{code:"02355",desc:"Reconstruction mammaire DIEP lambeau libre autologue",specialty:"Chirurgie plastique",section:"Seins",fee:2980.80},
+{code:"02356",desc:"Implant mammaire prothèse reconstruction après mastectomie",specialty:"Chirurgie plastique",section:"Seins",fee:980.60},
+{code:"02357",desc:"Reconstruction mammaire prothèse bilatérale",specialty:"Chirurgie plastique",section:"Seins",fee:1280.75},
+{code:"02360",desc:"Rhinoplastie esthétique fonctionnelle",specialty:"Chirurgie plastique",section:"Nez",fee:980.65},
+{code:"02365",desc:"Rhytidectomie lifting facial",specialty:"Chirurgie plastique",section:"Face",fee:1250.80},
+{code:"02370",desc:"Abdominoplastie fonctionnelle diastasis perte de poids",specialty:"Chirurgie plastique",section:"Abdomen",fee:820.55},
+{code:"02375",desc:"Réduction mammaire bilatérale ptose hypertrophie mammaire",specialty:"Chirurgie plastique",section:"Seins",fee:1050.70},
+{code:"02380",desc:"Replantation digitale microscopique doigt sectionné",specialty:"Chirurgie plastique",section:"Microchirurgie",fee:2450.85},
+{code:"02381",desc:"Greffe nerveuse nerf périphérique radial médian cubital",specialty:"Chirurgie plastique",section:"Nerfs périphériques",fee:980.65},
+{code:"02382",desc:"Parage fermeture plaie complexe contamination",specialty:"Chirurgie plastique",section:"Peau",fee:480.40},
+// ─── GASTRO-ENTÉROLOGIE ──────────────────────────────────────────────────
+{code:"03100",desc:"Coloscopie diagnostique complète colonoscopie",specialty:"Gastro-entérologie",section:"Colon",fee:195.40},
+{code:"03101",desc:"Coloscopie polypectomie exérèse polype",specialty:"Gastro-entérologie",section:"Colon",fee:280.55},
+{code:"03102",desc:"Coloscopie mucosectomie EMR résection muqueuse endoscopique",specialty:"Gastro-entérologie",section:"Colon",fee:380.65},
+{code:"03105",desc:"Gastroscopie diagnostique EOGD oesogastroduodénoscopie",specialty:"Gastro-entérologie",section:"Estomac",fee:145.35},
+{code:"03106",desc:"Gastroscopie biopsies Helicobacter pylori maladie coeliaque",specialty:"Gastro-entérologie",section:"Estomac",fee:175.45},
+{code:"03107",desc:"Gastroscopie dilatation oesophagienne",specialty:"Gastro-entérologie",section:"Oesophage",fee:225.55},
+{code:"03110",desc:"CPRE cholangio-pancréatographie rétrograde endoscopique diagnostique",specialty:"Gastro-entérologie",section:"Voies biliaires",fee:580.75},
+{code:"03111",desc:"CPRE sphinctérotomie endoscopique extraction lithiase calcul biliaire",specialty:"Gastro-entérologie",section:"Voies biliaires",fee:720.85},
+{code:"03115",desc:"Échoendoscopie EUS diagnostique",specialty:"Gastro-entérologie",section:"Pancréas",fee:380.60},
+{code:"03116",desc:"Échoendoscopie ponction aspiration EUS-FNA biopsie pancréas",specialty:"Gastro-entérologie",section:"Pancréas",fee:520.70},
+{code:"03125",desc:"Gastrostomie percutanée PEG sonde gastrique",specialty:"Gastro-entérologie",section:"Estomac",fee:280.45},
+{code:"03126",desc:"Ligature varices oesophagiennes endoscopique hémorragie digestive",specialty:"Gastro-entérologie",section:"Oesophage",fee:380.55},
+{code:"03130",desc:"Dissection sous-muqueuse endoscopique ESD colon estomac",specialty:"Gastro-entérologie",section:"Colon",fee:680.80},
+// ─── ANESTHÉSIOLOGIE ─────────────────────────────────────────────────────
+{code:"00010",desc:"Anesthésie générale unités de base durée par 10 min",specialty:"Anesthésiologie",section:"Anesthésie générale",fee:27.50},
+{code:"00020",desc:"Anesthésie rachidienne spinale",specialty:"Anesthésiologie",section:"Anesthésie régionale",fee:220.40},
+{code:"00030",desc:"Anesthésie combinée rachidienne-péridurale CSE",specialty:"Anesthésiologie",section:"Anesthésie régionale",fee:280.55},
+{code:"00040",desc:"Bloc nerveux périphérique échoguidé membre supérieur inférieur",specialty:"Anesthésiologie",section:"Blocs périphériques",fee:185.30},
+{code:"00041",desc:"Bloc paravertébral interscalénique échoguidé",specialty:"Anesthésiologie",section:"Blocs périphériques",fee:195.40},
+{code:"00050",desc:"Intubation endotrachéale difficile vidéolaryngoscope",specialty:"Anesthésiologie",section:"Anesthésie générale",fee:145.25},
+{code:"00060",desc:"Anesthésie obstétricale péridurale de travail accouchement",specialty:"Anesthésiologie",section:"Obstétrique",fee:320.55},
+{code:"00070",desc:"Anesthésie chirurgie cardiaque CEC forfait de base",specialty:"Anesthésiologie",section:"Chirurgie cardiaque",fee:580.75},
+{code:"00080",desc:"Surveillance disponibilité per-opératoire par 15 min additionnelle",specialty:"Anesthésiologie",section:"Surveillance",fee:41.15},
+{code:"09403",desc:"Réanimation cardio-respiratoire RCR honoraire base 15 premières min",specialty:"Anesthésiologie",section:"Réanimation",fee:82.35},
+{code:"09404",desc:"Réanimation cardio-respiratoire RCR par 15 min additionnelles",specialty:"Anesthésiologie",section:"Réanimation",fee:82.35},
+// ─── CARDIOLOGIE ─────────────────────────────────────────────────────────
+{code:"09100",desc:"Coronarographie diagnostique cathétérisme cardiaque gauche",specialty:"Cardiologie",section:"Cathétérisme",fee:480.60},
+{code:"09101",desc:"Angioplastie coronarienne ICP PCI stent 1 vaisseau",specialty:"Cardiologie",section:"Interventions",fee:780.80},
+{code:"09102",desc:"Angioplastie coronarienne ICP PCI multi-vasculaire",specialty:"Cardiologie",section:"Interventions",fee:980.90},
+{code:"09105",desc:"Stimulateur cardiaque pacemaker simple chambre VVI",specialty:"Cardiologie",section:"Stimulateur cardiaque",fee:680.60},
+{code:"09106",desc:"Stimulateur cardiaque pacemaker double chambre DDD",specialty:"Cardiologie",section:"Stimulateur cardiaque",fee:820.75},
+{code:"09107",desc:"Défibrillateur DAI ICD implantable simple double chambre",specialty:"Cardiologie",section:"Stimulateur cardiaque",fee:980.80},
+{code:"09108",desc:"CRT-D défibrillateur resynchronisation cardiaque insuffisance cardiaque",specialty:"Cardiologie",section:"Stimulateur cardiaque",fee:1280.90},
+{code:"09110",desc:"Ablation cathéter radiofréquence fibrillation auriculaire FA",specialty:"Cardiologie",section:"Électrophysiologie",fee:1480.80},
+{code:"09111",desc:"Cardioversion électrique externe choc électrique CEE",specialty:"Cardiologie",section:"Électrophysiologie",fee:280.40},
+{code:"09115",desc:"Cathétérisme droit pressions pulmonaires Swan-Ganz",specialty:"Cardiologie",section:"Cathétérisme",fee:380.55},
+{code:"09120",desc:"Échocardiographie transoesophagienne ETO rapport",specialty:"Cardiologie",section:"Diagnostique",fee:280.50},
+{code:"09130",desc:"Péricardiocentèse échoguidée tamponnade épanchement péricardique",specialty:"Cardiologie",section:"Interventions",fee:480.60},
+// ─── PÉDIATRIE ───────────────────────────────────────────────────────────
+{code:"00234",desc:"Hernie inguinale unilatérale enfant moins de 5 ans pédiatrique",specialty:"Pédiatrie",section:"Paroi abdominale",fee:520.65},
+{code:"00249",desc:"Atrésie de l oesophage réparation primaire nouveau-né",specialty:"Pédiatrie",section:"Oesophage",fee:2480.90},
+{code:"00863",desc:"Torsion testiculaire détorsion orchidopexie enfant",specialty:"Pédiatrie",section:"Testicules",fee:480.50},
+{code:"14500",desc:"Laparotomie entérocolite nécrosante NEC nouveau-né",specialty:"Pédiatrie",section:"Urgences néonatales",fee:1580.80},
+{code:"14501",desc:"Sténose du pylore pyloromyotomie Ramstedt",specialty:"Pédiatrie",section:"Estomac",fee:680.55},
+{code:"14502",desc:"Malrotation intestinale opération de Ladd",specialty:"Pédiatrie",section:"Intestin",fee:1280.70},
+{code:"14503",desc:"Laparoschisis omphalocèle fermeture chirurgicale nouveau-né",specialty:"Pédiatrie",section:"Paroi abdominale",fee:1480.75},
+// ─── VISITES ─────────────────────────────────────────────────────────────
+{code:"00035",desc:"Visite principale chirurgie générale cabinet externe",specialty:"Chirurgie générale",section:"Visites",fee:68.90},
+{code:"00047",desc:"Visite de contrôle chirurgie générale hospitalisation",specialty:"Chirurgie générale",section:"Visites",fee:40.25},
+{code:"00900",desc:"Consultation visite principale supplément consultation chirurgie",specialty:"Chirurgie générale",section:"Visites",fee:148.60},
+{code:"09990",desc:"Tarification nouvelle acte non répertorié RAMQ",specialty:"Divers",section:"Divers",fee:0.00},
+];
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AUTH STATE
+// ═════════════════════════════════════════════════════════════════════════════
+let currentUser = null;
+
+async function sendOTP() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  if (!email || !email.includes('@')) { toast('Adresse courriel invalide','error'); return; }
+  if (!sb) { toast('Supabase non configuré — utilisez le mode local','error'); return; }
+  const btn = document.getElementById('sendBtn');
+  btn.textContent = 'Envoi en cours…'; btn.disabled = true;
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  btn.textContent = 'Envoyer le code →'; btn.disabled = false;
+  if (error) { toast('Erreur: ' + error.message, 'error'); return; }
+  document.getElementById('emailDisplay').textContent = email;
+  document.getElementById('step1').style.display = 'none';
+  document.getElementById('step2').style.display = 'block';
+  document.getElementById('otpInput').focus();
+  toast('Code envoyé!', 'success');
+}
+
+async function verifyOTP() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const token = document.getElementById('otpInput').value.replace(/\D/g,'').trim();
+  if (token.length !== 6) { toast('Entrez le code à 6 chiffres','error'); return; }
+  const btn = document.getElementById('verifyBtn');
+  btn.textContent = 'Vérification…'; btn.disabled = true;
+  const { data, error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+  btn.textContent = 'Vérifier →'; btn.disabled = false;
+  if (error) { toast('Code invalide ou expiré','error'); document.getElementById('otpInput').value=''; return; }
+  currentUser = data.user;
+  await loadFromServer();
+  launchApp();
+}
+
+async function resendOTP() {
+  document.getElementById('otpInput').value = '';
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('step1').style.display = 'block';
+  await sendOTP();
+}
+
+function goBack() {
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('step1').style.display = 'block';
+  document.getElementById('otpInput').value = '';
+}
+
+function useLocalMode() {
+  currentUser = null;
+  launchApp();
+}
+
+async function logout() {
+  if (sb && currentUser) await sb.auth.signOut();
+  currentUser = null;
+  cases = [];
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('step1').style.display = 'block';
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('otpInput').value = '';
+  document.getElementById('loginScreen').style.display = 'flex';
+  toast('Déconnecté','info');
+}
+
+function launchApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  if (!sb) document.getElementById('cfgBanner').style.display = 'flex';
+  document.getElementById('hdrUser').textContent = currentUser ? currentUser.email : 'Mode local';
+  init();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SERVER SYNC (Supabase)
+// ═════════════════════════════════════════════════════════════════════════════
+async function loadFromServer() {
+  if (!sb || !currentUser) return;
+  const { data, error } = await sb.from('cases')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('date', { ascending: false });
+  if (error) { console.warn('Load error:', error); return; }
+  if (data) cases = data.map(r => ({ ...r.payload, id: r.id }));
+}
+
+async function saveToServer(c) {
+  if (!sb || !currentUser) return;
+  await sb.from('cases').upsert({
+    id: c.id,
+    user_id: currentUser.id,
+    date: c.date,
+    payload: c
+  }, { onConflict: 'id' });
+}
+
+async function deleteFromServer(id) {
+  if (!sb || !currentUser) return;
+  await sb.from('cases').delete().eq('id', id).eq('user_id', currentUser.id);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// APP STATE
+// ═════════════════════════════════════════════════════════════════════════════
+let cases = [];
+let settings = JSON.parse(localStorage.getItem('cqSettings') || '{}');
+let selectedCodes = [];
+let currentRole = 'primary';
+let dashPeriod = 'week';
+let casesPeriod = 'week';
+
+function saveCasesLocal() { if (!currentUser) localStorage.setItem('cqCases', JSON.stringify(cases)); }
+function loadCasesLocal() { if (!currentUser) cases = JSON.parse(localStorage.getItem('cqCases') || '[]'); }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// INIT
+// ═════════════════════════════════════════════════════════════════════════════
+function init() {
+  if (!currentUser) loadCasesLocal();
+  document.getElementById('nDate').value = today();
+  if (settings.surgeon) document.getElementById('nSurgeon').value = settings.surgeon;
+  if (settings.surgeon) document.getElementById('expSurgeon').value = settings.surgeon;
+  if (settings.ramqNum) document.getElementById('expRAMQ').value = settings.ramqNum;
+  const now = new Date();
+  document.getElementById('expFrom').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  document.getElementById('expTo').value = today();
+  populateBrowseSpec();
+  renderDashboard();
+  renderCases();
+  renderBrowser('');
+  updateExpSummary();
+  updateHeader();
+}
+
+function today() { return new Date().toISOString().split('T')[0]; }
+
+async function checkSession() {
+  if (!sb) {
+    document.getElementById('loginScreen').style.display = 'flex';
+    return;
+  }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    await loadFromServer();
+    launchApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SMART SEARCH ENGINE
+// ═════════════════════════════════════════════════════════════════════════════
+function norm(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/['']/g,"'");
+}
+
+function scoreCode(c, rawQ) {
+  const q = norm(rawQ).trim();
+  if (!q) return 0;
+  const terms = q.split(/\s+/).filter(Boolean);
+  const cn = norm(c.code), dn = norm(c.desc), sn = norm(c.section), spn = norm(c.specialty);
+  let score = 0;
+  // Code matches
+  if (cn === q) score += 10000;
+  else if (cn.startsWith(q)) score += 5000;
+  else if (cn.includes(q)) score += 3000;
+  // Full phrase in description
+  if (dn.includes(q)) score += 500;
+  // Per-term scoring
+  for (const t of terms) {
+    if (dn.includes(t)) {
+      score += 200;
+      if (dn.startsWith(t)) score += 100;
+      const wre = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b');
+      if (wre.test(dn)) score += 80;
+    }
+    if (sn.includes(t)) score += 40;
+    if (spn.includes(t)) score += 30;
+  }
+  // All terms present bonus
+  if (terms.every(t => dn.includes(t))) score += 300;
+  return score;
+}
+
+function hlText(text, rawQ) {
+  const terms = norm(rawQ).trim().split(/\s+/).filter(Boolean);
+  // Work on the raw text so marks are clean, then escape
+  const escaped = (text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const allT = [norm(rawQ).trim(), ...terms].filter(Boolean).sort((a,b)=>b.length-a.length);
+  let out = escaped;
+  for (const t of allT) {
+    if (!t) continue;
+    out = out.replace(new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi'), '<mark>$1</mark>');
+  }
+  return out;
+}
+
+function searchCodes(query) {
+  const q = query.trim();
+  const spec = document.getElementById('nSpecialty').value;
+  const el = document.getElementById('codeResults');
+  if (!q) { el.style.display = 'none'; return; }
+
+  let pool = spec ? DB.filter(c => c.specialty === spec) : DB;
+  const scored = pool
+    .map(c => ({ c, s: scoreCode(c, q) }))
+    .filter(x => x.s > 0)
+    .sort((a,b) => b.s - a.s)
+    .slice(0, 25);
+
+  if (!scored.length) {
+    el.innerHTML = `<div style="padding:12px 14px;font-size:12px;color:var(--muted)">Aucun résultat pour «&nbsp;${esc(q)}&nbsp;». Essayez un autre terme.</div>`;
+    el.style.display = 'block'; return;
+  }
+
+  el.innerHTML = scored.map(({c}) => `
+    <div class="cri" onclick="pickCode('${esc(c.code)}','${esc(c.desc).replace(/'/g,'&#39;')}')">
+      <div class="cri-code">${hlText(c.code, q)}</div>
+      <div class="cri-desc">${hlText(c.desc, q)}</div>
+      <div class="cri-meta">
+        <span class="cri-spec">${esc(c.specialty)} · ${esc(c.section)}</span>
+        <span class="cri-fee">${fmt(c.fee)}</span>
+      </div>
+    </div>`).join('');
+  el.style.display = 'block';
+}
+
+function pickCode(code, descEncoded) {
+  const descClean = descEncoded.replace(/&#39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+  const c = DB.find(x => x.code === code && x.desc === descClean) || DB.find(x => x.code === code);
+  if (!c) return;
+  const dup = selectedCodes.some(x => x.code === c.code && x.desc === c.desc && x.role === currentRole);
+  if (dup) { toast('Cet acte est déjà ajouté pour ce rôle','info'); return; }
+  selectedCodes.push({ ...c, role: currentRole });
+  document.getElementById('codeSearch').value = '';
+  document.getElementById('codeResults').style.display = 'none';
+  renderSelCodes();
+}
+
+function onSpecialtyChange() { searchCodes(document.getElementById('codeSearch').value); }
+function setRole(r) {
+  currentRole = r;
+  document.getElementById('roleP').className = 'role-opt' + (r==='primary'?' rp':'');
+  document.getElementById('roleA').className = 'role-opt' + (r==='assist'?' ra':'');
+}
+function removeCode(i) { selectedCodes.splice(i,1); renderSelCodes(); }
+
+function renderSelCodes() {
+  const el = document.getElementById('selCodes');
+  const tot = document.getElementById('codeTotal');
+  const tv = document.getElementById('codeTotalVal');
+  if (!selectedCodes.length) { el.innerHTML=''; tot.style.display='none'; return; }
+  el.innerHTML = selectedCodes.map((c,i) => {
+    const fee = c.role==='assist' ? c.fee*.5 : c.fee;
+    return `<div class="sci">
+      <div class="sci-info">
+        <div class="sci-top"><span class="sci-code">${c.code}</span><span class="sci-fee">${fmt(fee)}${c.role==='assist'?' (50%)':''}</span></div>
+        <div class="sci-desc">${esc(c.desc)}</div>
+        <div class="sci-spec">${esc(c.specialty)} · ${esc(c.section)}</div>
+      </div>
+      <div class="sci-role ${c.role==='primary'?'role-p':'role-a'}">${c.role==='primary'?'Principal':'Assistant'}</div>
+      <button class="del-btn" onclick="removeCode(${i})">✕</button>
+    </div>`;
+  }).join('');
+  const sub = selectedCodes.reduce((s,c)=>s+(c.role==='assist'?c.fee*.5:c.fee),0);
+  tv.textContent = fmt(sub); tot.style.display = 'flex';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SAVE CASE
+// ═════════════════════════════════════════════════════════════════════════════
+async function saveCase() {
+  const patient = document.getElementById('nPatient').value.trim();
+  const date = document.getElementById('nDate').value;
+  const surgeon = document.getElementById('nSurgeon').value.trim();
+  if (!patient) { toast('Nom du patient requis','error'); return; }
+  if (!date) { toast('Date requise','error'); return; }
+  if (!surgeon) { toast('Nom du chirurgien requis','error'); return; }
+  if (!selectedCodes.length) { toast('Ajoutez au moins un acte RAMQ','error'); return; }
+
+  const c = {
+    id: Date.now().toString(),
+    patient, date, surgeon,
+    nam: document.getElementById('nNAM').value.trim(),
+    duration: parseInt(document.getElementById('nDuration').value)||0,
+    anesthesiologist: document.getElementById('nAnesth').value.trim(),
+    assistants: document.getElementById('nAssists').value.trim(),
+    resident: document.getElementById('nResident').value.trim(),
+    specialty: document.getElementById('nSpecialty').value,
+    diagnosis: document.getElementById('nDiag').value.trim(),
+    notes: document.getElementById('nNotes').value.trim(),
+    hospital: document.getElementById('nHospital').value.trim(),
+    anesthType: document.getElementById('nAnesthType').value,
+    approach: document.getElementById('nApproach').value,
+    codes: selectedCodes.map(x=>({...x})),
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+
+  cases.unshift(c);
+  saveCasesLocal();
+  if (currentUser) await saveToServer(c);
+
+  // Save surgeon settings
+  if (surgeon) { settings.surgeon = surgeon; localStorage.setItem('cqSettings', JSON.stringify(settings)); }
+
+  clearForm();
+  showTab('cases');
+  toast('Cas enregistré!','success');
+  updateHeader();
+}
+
+function clearForm() {
+  ['nPatient','nNAM','nDuration','nAnesth','nAssists','nResident','nDiag','nNotes','nHospital'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nDate').value = today();
+  document.getElementById('nSpecialty').value = '';
+  document.getElementById('nAnesthType').value = '';
+  document.getElementById('nApproach').value = '';
+  if (settings.surgeon) document.getElementById('nSurgeon').value = settings.surgeon;
+  else document.getElementById('nSurgeon').value = '';
+  selectedCodes = [];
+  renderSelCodes();
+  document.getElementById('codeSearch').value = '';
+  document.getElementById('codeResults').style.display = 'none';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TABS & NAV
+// ═════════════════════════════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn,.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const idx = ['dashboard','add','cases','codes','export'].indexOf(name);
+  document.querySelectorAll('.tab-btn')[idx]?.classList.add('active');
+  document.querySelectorAll('.nav-btn')[idx]?.classList.add('active');
+  if (name==='dashboard') renderDashboard();
+  if (name==='cases') renderCases();
+  if (name==='export') updateExpSummary();
+  if (name==='codes') renderBrowser(document.getElementById('browseQ').value);
+  document.getElementById('codeResults').style.display = 'none';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PERIODS
+// ═════════════════════════════════════════════════════════════════════════════
+function setPeriod(p,el) {
+  dashPeriod=p;
+  document.querySelectorAll('#page-dashboard .chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active'); renderDashboard();
+}
+function setCasePeriod(p,el) {
+  casesPeriod=p;
+  document.querySelectorAll('#page-cases .chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active'); renderCases();
+}
+function filterPeriod(arr,p) {
+  const now = new Date(); now.setHours(23,59,59);
+  return arr.filter(c=>{
+    const d = new Date(c.date);
+    if (p==='week') { const s=new Date(now); s.setDate(now.getDate()-now.getDay()); s.setHours(0,0,0); return d>=s&&d<=now; }
+    if (p==='month') return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+    if (p==='last30') { const s=new Date(now); s.setDate(s.getDate()-30); return d>=s; }
+    return true;
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═════════════════════════════════════════════════════════════════════════════
+function caseTotal(c) { return (c.codes||[]).reduce((s,x)=>s+(x.role==='assist'?x.fee*.5:x.fee),0); }
+
+function renderDashboard() {
+  const f = filterPeriod(cases, dashPeriod);
+  const billed = f.filter(c=>c.status==='billed');
+  const pending = f.filter(c=>c.status!=='billed');
+  const tot = f.reduce((s,c)=>s+caseTotal(c),0);
+  const allCodes = new Set(f.flatMap(c=>(c.codes||[]).map(x=>x.code)));
+
+  document.getElementById('dashTotal').textContent = fmt(tot);
+  document.getElementById('dashCount').textContent = f.length+' cas';
+  document.getElementById('dashBilled').textContent = fmt(billed.reduce((s,c)=>s+caseTotal(c),0));
+  document.getElementById('dashBilledN').textContent = billed.length+' soumis';
+  document.getElementById('dashPending').textContent = fmt(pending.reduce((s,c)=>s+caseTotal(c),0));
+  document.getElementById('dashPendingN').textContent = pending.length+' en attente';
+  document.getElementById('dashActs').textContent = allCodes.size;
+
+  const sm = {}; f.forEach(c=>{const sp=c.specialty||'Non spécifié'; if(!sm[sp]){sm[sp]={n:0,t:0}} sm[sp].n++; sm[sp].t+=caseTotal(c);});
+  document.getElementById('dashSpec').innerHTML = Object.keys(sm).length
+    ? Object.entries(sm).sort((a,b)=>b[1].t-a[1].t).map(([sp,v])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div><div style="font-size:13px;font-weight:500">${esc(sp)}</div><div style="font-size:11px;color:var(--muted)">${v.n} cas</div></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green);font-weight:600">${fmt(v.t)}</div>
+      </div>`).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Aucun cas pour cette période.</div>';
+
+  const recent = [...f].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+  document.getElementById('dashRecent').innerHTML = recent.length
+    ? recent.map(c=>`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="showDetail('${c.id}')">
+        <div><div style="font-size:13px;font-weight:600">${esc(c.patient)}</div><div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace">${c.date}</div></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green);font-weight:600">${fmt(caseTotal(c))}</div>
+      </div>`).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Aucun cas récent.</div>';
+}
+
+function updateHeader() {
+  const tot = cases.reduce((s,c)=>s+caseTotal(c),0);
+  document.getElementById('hdrTotal').textContent = fmt(tot);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CASES LIST
+// ═════════════════════════════════════════════════════════════════════════════
+function renderCases() {
+  const f = filterPeriod(cases, casesPeriod).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const el = document.getElementById('casesList');
+  if (!f.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><p>Aucun cas pour cette période.<br>Tapez <strong>Nouveau cas</strong> pour commencer.</p></div>`; return; }
+  el.innerHTML = f.map(c=>{
+    const codes = c.codes.slice(0,4);
+    return `<div class="case-item" onclick="showDetail('${c.id}')">
+      <div class="ci-top"><div class="ci-patient">${esc(c.patient)}</div><div class="ci-total">${fmt(caseTotal(c))}</div></div>
+      <div class="ci-date">${c.date}${c.duration?' · '+c.duration+' min':''}</div>
+      <div class="ci-surgeon">Dr ${esc(c.surgeon)}${c.hospital?' · '+esc(c.hospital):''}</div>
+      <div class="ci-codes">${codes.map(x=>`<span class="code-pill">${x.code}</span>`).join('')}${c.codes.length>4?`<span class="code-pill">+${c.codes.length-4}</span>`:''}</div>
+      <div class="ci-meta">
+        ${c.specialty?`<span class="mbadge mb-sp">${esc(c.specialty.split(' ').slice(0,2).join(' '))}</span>`:''}
+        ${c.duration?`<span class="mbadge mb-dur">${c.duration} min</span>`:''}
+        <span class="mbadge ${c.status==='billed'?'mb-done':'mb-pend'}">${c.status==='billed'?'Soumis RAMQ':'En attente'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CASE DETAIL MODAL
+// ═════════════════════════════════════════════════════════════════════════════
+function showDetail(id) {
+  const c = cases.find(x=>x.id===id); if (!c) return;
+  document.getElementById('caseModalTitle').textContent = c.patient;
+  document.getElementById('caseModalBody').innerHTML = `
+    <div class="drow"><span class="dkey">Date</span><span class="dval mono">${c.date}</span></div>
+    <div class="drow"><span class="dkey">Durée</span><span class="dval">${c.duration?c.duration+' min':'—'}</span></div>
+    <div class="drow"><span class="dkey">NAM</span><span class="dval mono">${c.nam||'—'}</span></div>
+    <div class="drow"><span class="dkey">Chirurgien</span><span class="dval">Dr ${esc(c.surgeon)}</span></div>
+    <div class="drow"><span class="dkey">Anesthésiologiste</span><span class="dval">${c.anesthesiologist?'Dr '+esc(c.anesthesiologist):'—'}</span></div>
+    <div class="drow"><span class="dkey">Assistant(s)</span><span class="dval">${c.assistants||'—'}</span></div>
+    <div class="drow"><span class="dkey">Résident</span><span class="dval">${c.resident||'—'}</span></div>
+    <div class="drow"><span class="dkey">Spécialité</span><span class="dval">${c.specialty||'—'}</span></div>
+    <div class="drow"><span class="dkey">Établissement</span><span class="dval">${c.hospital||'—'}</span></div>
+    <div class="drow"><span class="dkey">Anesthésie</span><span class="dval">${c.anesthType||'—'}</span></div>
+    <div class="drow"><span class="dkey">Approche</span><span class="dval">${c.approach||'—'}</span></div>
+    <div class="drow"><span class="dkey">Diagnostic</span><span class="dval">${c.diagnosis||'—'}</span></div>
+    <div class="drow"><span class="dkey">Statut</span><span class="dval" style="color:${c.status==='billed'?'var(--green)':'var(--amber)'}">${c.status==='billed'?'✓ Soumis RAMQ':'⏳ En attente'}</span></div>
+    ${c.notes?`<div class="drow" style="flex-direction:column;gap:5px"><span class="dkey">Notes</span><span style="font-size:12px;color:var(--text);line-height:1.6">${esc(c.notes)}</span></div>`:''}
+    <div class="sec-div"><span class="sec-div-lbl">Actes RAMQ</span><div class="sec-div-line"></div></div>
+    ${(c.codes||[]).map(x=>{
+      const fee = x.role==='assist'?x.fee*.5:x.fee;
+      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:7px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);font-weight:600">${x.code}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green);font-weight:600">${fmt(fee)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px">${esc(x.desc)}</div>
+        <div style="font-size:10px;color:var(--muted)">${esc(x.specialty)} · ${esc(x.section)} · <span style="color:${x.role==='assist'?'var(--purple)':'var(--accent2)'};font-weight:600">${x.role==='assist'?'Assistant (50%)':'Chir. principal'}</span></div>
+      </div>`;
+    }).join('')}
+    <div class="inline-total"><span class="it-label">Total facturable</span><span class="it-val">${fmt(caseTotal(c))}</span></div>
+    <div class="btn-row" style="margin-top:16px">
+      ${c.status!=='billed'
+        ?`<button class="btn btn-green btn-sm" onclick="markBilled('${c.id}')">✓ Marquer soumis</button>`
+        :`<button class="btn btn-secondary btn-sm" onclick="markPending('${c.id}')">↩ Remettre en attente</button>`}
+      <button class="btn btn-secondary btn-sm" onclick="editCase('${c.id}')">✏️ Modifier</button>
+      <button class="btn btn-danger btn-sm" onclick="delCase('${c.id}')">🗑 Supprimer</button>
+    </div>`;
+  document.getElementById('caseModal').classList.add('open');
+}
+
+document.getElementById('caseModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) e.currentTarget.classList.remove('open'); });
+
+async function markBilled(id) {
+  const c=cases.find(x=>x.id===id); if(c){c.status='billed';c.billedAt=new Date().toISOString();}
+  saveCasesLocal(); if(currentUser) await saveToServer(c);
+  document.getElementById('caseModal').classList.remove('open');
+  renderCases(); renderDashboard(); toast('Marqué comme soumis','success');
+}
+async function markPending(id) {
+  const c=cases.find(x=>x.id===id); if(c){c.status='pending';delete c.billedAt;}
+  saveCasesLocal(); if(currentUser) await saveToServer(c);
+  document.getElementById('caseModal').classList.remove('open');
+  renderCases(); renderDashboard(); toast('Remis en attente','info');
+}
+async function delCase(id) {
+  if(!confirm('Supprimer ce cas?')) return;
+  cases = cases.filter(x=>x.id!==id);
+  saveCasesLocal(); if(currentUser) await deleteFromServer(id);
+  document.getElementById('caseModal').classList.remove('open');
+  renderCases(); renderDashboard(); updateHeader(); toast('Supprimé','success');
+}
+function editCase(id) {
+  document.getElementById('caseModal').classList.remove('open');
+  const c = cases.find(x=>x.id===id); if(!c) return;
+  document.getElementById('nPatient').value=c.patient;
+  document.getElementById('nNAM').value=c.nam||'';
+  document.getElementById('nDate').value=c.date;
+  document.getElementById('nDuration').value=c.duration||'';
+  document.getElementById('nSurgeon').value=c.surgeon;
+  document.getElementById('nAnesth').value=c.anesthesiologist||'';
+  document.getElementById('nAssists').value=c.assistants||'';
+  document.getElementById('nResident').value=c.resident||'';
+  document.getElementById('nSpecialty').value=c.specialty||'';
+  document.getElementById('nDiag').value=c.diagnosis||'';
+  document.getElementById('nNotes').value=c.notes||'';
+  document.getElementById('nHospital').value=c.hospital||'';
+  document.getElementById('nAnesthType').value=c.anesthType||'';
+  document.getElementById('nApproach').value=c.approach||'';
+  selectedCodes = (c.codes||[]).map(x=>({...x}));
+  renderSelCodes();
+  cases = cases.filter(x=>x.id!==id);
+  saveCasesLocal();
+  showTab('add');
+  toast('Cas chargé pour modification','info');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CODE BROWSER
+// ═════════════════════════════════════════════════════════════════════════════
+function populateBrowseSpec() {
+  const specs = [...new Set(DB.map(c=>c.specialty))].sort();
+  const sel = document.getElementById('browseSpec');
+  specs.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+}
+
+function renderBrowser(query) {
+  const q = (query||'').trim();
+  const spec = document.getElementById('browseSpec').value;
+  let pool = spec ? DB.filter(c=>c.specialty===spec) : DB;
+  let dp;
+  if (q.length>=1) {
+    dp = pool.map(c=>({c,s:scoreCode(c,q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>x.c);
+  } else { dp = pool; }
+
+  const el = document.getElementById('codeBrowser');
+  if (!dp.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><p>Aucun résultat pour «&nbsp;${esc(q)}&nbsp;».</p></div>`; return; }
+
+  const groups = {};
+  dp.forEach(c=>{ if(!groups[c.specialty]) groups[c.specialty]={}; if(!groups[c.specialty][c.section]) groups[c.specialty][c.section]=[]; groups[c.specialty][c.section].push(c); });
+  const searching = q.length>=1;
+
+  el.innerHTML = Object.entries(groups).sort(([a],[b])=>a.localeCompare(b)).map(([sp,secs])=>{
+    const n = Object.values(secs).flat().length;
+    const gid = 'g_'+sp.replace(/[^a-z]/gi,'');
+    return `<div class="sp-group">
+      <div class="sp-header" onclick="toggleGroup('${gid}')">
+        <span class="sp-name">${esc(sp)}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="sp-count">${n} actes</span>
+          <span class="sp-toggle" id="t_${gid}">${searching?'▼':'▶'}</span>
+        </div>
+      </div>
+      <div class="sp-codes ${searching?'open':''}" id="${gid}">
+        ${Object.entries(secs).map(([sec,codes])=>`
+          <div style="margin-bottom:4px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:5px 12px 3px;background:var(--surface3);border-radius:5px;margin-bottom:2px">${esc(sec)}</div>
+            ${codes.map(c=>{
+              const sd = c.desc.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+              return `<div class="cli" onclick="addFromBrowser('${esc(c.code)}','${sd}')">
+                <div class="cli-left">
+                  <div class="cli-code">${searching?hlText(c.code,q):c.code}</div>
+                  <div class="cli-desc">${searching?hlText(c.desc,q):esc(c.desc)}</div>
+                </div>
+                <div class="cli-fee">${fmt(c.fee)}</div>
+              </div>`;
+            }).join('')}
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleGroup(id) {
+  const el = document.getElementById(id);
+  const tog = document.getElementById('t_'+id);
+  el.classList.toggle('open');
+  tog.textContent = el.classList.contains('open') ? '▼' : '▶';
+}
+
+function addFromBrowser(code, desc) {
+  const c = DB.find(x=>x.code===code&&x.desc===desc) || DB.find(x=>x.code===code);
+  if (!c) return;
+  selectedCodes.push({...c, role:'primary'});
+  showTab('add'); renderSelCodes();
+  toast('Acte ajouté — vérifiez le rôle','success');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═════════════════════════════════════════════════════════════════════════════
+function getExpList() {
+  const from = document.getElementById('expFrom').value;
+  const to = document.getElementById('expTo').value;
+  const st = document.getElementById('expStatus').value;
+  return cases.filter(c=>{
+    if(from && c.date<from) return false;
+    if(to && c.date>to) return false;
+    if(st==='pending' && c.status!=='pending') return false;
+    if(st==='billed' && c.status!=='billed') return false;
+    return true;
+  });
+}
+
+function updateExpSummary() {
+  const list = getExpList();
+  const tot = list.reduce((s,c)=>s+caseTotal(c),0);
+  document.getElementById('expSummary').innerHTML = list.length ? `
+    <div class="drow"><span class="dkey">Nombre de cas</span><span class="dval">${list.length}</span></div>
+    <div class="drow"><span class="dkey">En attente</span><span class="dval" style="color:var(--amber)">${list.filter(c=>c.status!=='billed').length}</span></div>
+    <div class="drow"><span class="dkey">Soumis RAMQ</span><span class="dval" style="color:var(--green)">${list.filter(c=>c.status==='billed').length}</span></div>
+    <div class="drow"><span class="dkey">Total facturable</span><span class="dval mono" style="font-size:17px;color:var(--green)">${fmt(tot)}</span></div>`
+    : '<div style="color:var(--muted);font-size:13px">Aucun cas dans cette plage.</div>';
+}
+
+function exportExcel() {
+  const list = getExpList();
+  if (!list.length) { toast('Aucun cas à exporter','error'); return; }
+  const surgeon = document.getElementById('expSurgeon').value || settings.surgeon || 'Chirurgien';
+  const ramq = document.getElementById('expRAMQ').value || '';
+  const from = document.getElementById('expFrom').value;
+  const to = document.getElementById('expTo').value;
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1 — Résumé
+  const s1 = [
+    ['FACTURATION RAMQ — RELEVÉ DES ACTES','','','','','','','','','','','','','',''],
+    [`Chirurgien: ${surgeon}`,'',`N° RAMQ: ${ramq}`,'',`Exporté le: ${today()}`,'','','','','','','','','',''],
+    [`Période: ${from} au ${to}`,'','','','','','','','','','','','','',''],
+    [],
+    ['Date','Patient','NAM','Chirurgien','Anesthésiologiste','Assistant(s)','Durée (min)','Hôpital','Spécialité','Approche','Anesthésie','Diagnostic','Statut','Nb actes','Total ($)']
+  ];
+  list.forEach(c=>s1.push([c.date,c.patient,c.nam||'',c.surgeon,c.anesthesiologist||'',c.assistants||'',c.duration||'',c.hospital||'',c.specialty||'',c.approach||'',c.anesthType||'',c.diagnosis||'',c.status==='billed'?'Soumis RAMQ':'En attente',c.codes.length,caseTotal(c)]));
+  s1.push([]); s1.push(['','','','','','','','','','','','','TOTAL','',list.reduce((s,c)=>s+caseTotal(c),0)]);
+  const ws1 = XLSX.utils.aoa_to_sheet(s1);
+  ws1['!cols'] = [10,26,15,20,20,20,8,20,24,18,14,28,14,7,12].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws1,'Résumé cas');
+
+  // Sheet 2 — Détail actes
+  const s2 = [
+    ['DÉTAIL DES ACTES PAR CAS'],
+    [`${surgeon} | N° RAMQ: ${ramq} | Période: ${from} au ${to}`],
+    [],
+    ['Date','Patient','NAM','Code RAMQ','Description de l\'acte','Spécialité','Section','Rôle','Tarif de base ($)','Tarif appliqué ($)','Statut']
+  ];
+  list.forEach(c=>{
+    c.codes.forEach(x=>{
+      const app = x.role==='assist'?x.fee*.5:x.fee;
+      s2.push([c.date,c.patient,c.nam||'',x.code,x.desc,x.specialty,x.section,x.role==='primary'?'Chirurgien principal':'Assistant / Co-chirurgien',x.fee,app,c.status==='billed'?'Soumis RAMQ':'En attente']);
+    });
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(s2);
+  ws2['!cols'] = [10,26,15,10,46,22,22,24,14,14,14].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws2,'Détail actes');
+
+  // Sheet 3 — Par code
+  const cm = {};
+  list.forEach(c=>{
+    c.codes.forEach(x=>{
+      const k=x.code+'|'+x.role;
+      if(!cm[k]) cm[k]={code:x.code,desc:x.desc,spec:x.specialty,role:x.role,base:x.fee,n:0,tot:0};
+      cm[k].n++; cm[k].tot+=(x.role==='assist'?x.fee*.5:x.fee);
+    });
+  });
+  const s3 = [
+    ['RÉSUMÉ PAR CODE RAMQ'],
+    [`${surgeon} | Période: ${from} au ${to}`],
+    [],
+    ['Code RAMQ','Description','Spécialité','Rôle','Tarif de base ($)','Nb fois','Total ($)'],
+    ...Object.values(cm).sort((a,b)=>b.tot-a.tot).map(r=>[r.code,r.desc,r.spec,r.role==='primary'?'Chirurgien principal':'Assistant',r.base,r.n,r.tot]),
+    [],
+    ['','','','','','TOTAL',Object.values(cm).reduce((s,r)=>s+r.tot,0)]
+  ];
+  const ws3 = XLSX.utils.aoa_to_sheet(s3);
+  ws3['!cols'] = [10,48,22,22,14,8,12].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws3,'Par code RAMQ');
+
+  XLSX.writeFile(wb, `Facturation_RAMQ_${surgeon.replace(/\s/g,'_')}_${from}_${to}.xlsx`);
+  // Save settings
+  const s = document.getElementById('expSurgeon').value;
+  const r = document.getElementById('expRAMQ').value;
+  if(s){settings.surgeon=s;localStorage.setItem('cqSettings',JSON.stringify(settings));}
+  if(r){settings.ramqNum=r;localStorage.setItem('cqSettings',JSON.stringify(settings));}
+  toast('Fichier Excel exporté!','success');
+}
+
+function exportCSV() {
+  const list = getExpList();
+  if (!list.length) { toast('Aucun cas à exporter','error'); return; }
+  const rows=[['Date','Patient','NAM','Code RAMQ','Description','Spécialité','Rôle','Tarif ($)','Chirurgien','Anesthésiologiste','Hôpital','Diagnostic','Statut']];
+  list.forEach(c=>c.codes.forEach(x=>{
+    const fee = x.role==='assist'?x.fee*.5:x.fee;
+    rows.push([c.date,c.patient,c.nam||'',x.code,x.desc,x.specialty,x.role==='primary'?'Principal':'Assistant',fee.toFixed(2),c.surgeon,c.anesthesiologist||'',c.hospital||'',c.diagnosis||'',c.status==='billed'?'Soumis':'En attente']);
+  }));
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`RAMQ_${today()}.csv`; a.click();
+  toast('CSV exporté!','success');
+}
+
+function printView() {
+  const list = getExpList();
+  if (!list.length) { toast('Aucun cas à imprimer','error'); return; }
+  const surgeon = document.getElementById('expSurgeon').value||'Chirurgien';
+  const ramq = document.getElementById('expRAMQ').value;
+  const tot = list.reduce((s,c)=>s+caseTotal(c),0);
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facturation RAMQ</title>
+<style>body{font-family:Arial,sans-serif;font-size:11px;max-width:960px;margin:0 auto;padding:20px}
+h1{font-size:16px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-bottom:14px}
+th{background:#1e3a5f;color:#fff;padding:6px 8px;text-align:left;font-size:10px}
+td{padding:5px 8px;border-bottom:1px solid #e0e0e0;font-size:10px}
+tr:nth-child(even){background:#f5f7fa}.ch{background:#eef3ff;padding:7px;border-radius:4px;margin-bottom:6px}
+.tot{font-weight:bold;text-align:right;margin-top:8px;font-size:12px}
+@media print{.np{display:none}}</style></head><body>
+<h1>Facturation RAMQ — Relevé des actes</h1>
+<p><strong>${surgeon}</strong>${ramq?' · N° RAMQ: '+ramq:''} · Exporté le ${today()}</p>
+${list.map(c=>`<div class="ch"><strong>${c.date} · ${c.patient}</strong>${c.nam?' · NAM: '+c.nam:''} · Dr ${c.surgeon}${c.hospital?' · '+c.hospital:''} ${c.duration?'· '+c.duration+' min':''} · <em>${c.status==='billed'?'✓ Soumis':'⏳ Attente'}</em></div>
+<table><tr><th>Code RAMQ</th><th>Description</th><th>Rôle</th><th>Tarif ($)</th></tr>
+${c.codes.map(x=>`<tr><td><strong>${x.code}</strong></td><td>${x.desc}</td><td>${x.role==='primary'?'Principal':'Assistant'}</td><td>${fmt(x.role==='assist'?x.fee*.5:x.fee)}</td></tr>`).join('')}
+<tr style="font-weight:bold"><td colspan="3" style="text-align:right">SOUS-TOTAL</td><td>${fmt(caseTotal(c))}</td></tr></table>`).join('')}
+<div class="tot">TOTAL GÉNÉRAL: ${fmt(tot)} · ${list.length} cas</div>
+<button class="np" style="margin-top:14px;padding:8px 18px;cursor:pointer" onclick="window.print()">Imprimer</button>
+</body></html>`);
+  w.document.close();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═════════════════════════════════════════════════════════════════════════════
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fmt(n){return'$'+((n||0).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g,',')}
+function toast(msg,type='success'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className=`toast ${type}`;
+  el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// Close results on outside click
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.code-search-wrap')) document.getElementById('codeResults').style.display='none';
+});
+
+// ── START ──
+checkSession();
+</script>
+</body>
+</html>
