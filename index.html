@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="ChirurgieQC"/>
+<meta name="theme-color" content="#0a0f1e"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ChirurgieQC — Facturation RAMQ</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- SheetJS for Excel export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ═══════════════════════════════ TOKENS ═══════════════════════════════ */
+:root{
+  --bg:#0a0f1e; --surface:#111827; --surface2:#1a2236; --surface3:#212d44;
+  --border:#263350; --accent:#3b82f6; --accent2:#60a5fa;
+  --green:#10b981; --red:#ef4444; --amber:#f59e0b; --purple:#8b5cf6; --cyan:#06b6d4;
+  --text:#e2e8f4; --muted:#64748b;
+  --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;min-height:100dvh;overflow-x:hidden}
+
+/* ═══════════════════════ LOGIN SCREEN ════════════════════════════════ */
+#loginScreen{
+  min-height:100dvh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:calc(var(--safe-top) + 28px) 20px calc(var(--safe-bottom) + 28px);
+  background:radial-gradient(ellipse at 50% 0%,#1a2a4a 0%,var(--bg) 60%);
+}
+.login-box{width:100%;max-width:380px}
+.login-logo{text-align:center;margin-bottom:36px}
+.login-logo h1{font-family:'Playfair Display',serif;font-size:36px;font-weight:800;line-height:1}
+.login-logo h1 span{color:var(--accent)}
+.login-logo p{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:2.5px;margin-top:6px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px 22px}
+.login-card h2{font-size:17px;font-weight:600;color:var(--text);margin-bottom:5px}
+.login-card .sub{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:22px}
+.otp-input{
+  font-family:'IBM Plex Mono',monospace;font-size:26px;letter-spacing:6px;
+  text-align:center;width:100%;
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  color:var(--text);padding:12px 14px;outline:none;
+}
+.otp-input:focus{border-color:var(--accent)}
+.login-note{font-size:11px;color:var(--muted);text-align:center;margin-top:16px;line-height:1.6}
+.login-note a{color:var(--accent2);cursor:pointer;text-decoration:none}
+.local-mode-btn{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;cursor:pointer;text-decoration:underline}
+
+/* ═══════════════════════ MAIN APP ════════════════════════════════════ */
+#mainApp{display:none;padding-bottom:calc(var(--safe-bottom) + 64px)}
+
+/* config warning banner */
+.config-banner{
+  background:#7c2d12;color:#fef3c7;font-size:11px;padding:7px 14px;
+  text-align:center;line-height:1.5;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.config-banner button{background:none;border:none;color:#fef3c7;font-size:15px;cursor:pointer;line-height:1}
+
+/* Header */
+.app-header{
+  background:linear-gradient(135deg,#0a0f1e,#111827);
+  border-bottom:1px solid var(--border);
+  padding:14px 18px 10px;
+  position:sticky;top:0;z-index:100;
+}
+.app-header-top{display:flex;justify-content:space-between;align-items:flex-start}
+.app-logo{font-family:'Playfair Display',serif;font-size:20px;font-weight:800;letter-spacing:-0.5px;line-height:1}
+.app-logo span{color:var(--accent)}
+.app-logo sub{font-size:9px;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-weight:400;display:block;margin-top:2px;letter-spacing:1px;text-transform:uppercase}
+.header-right{text-align:right}
+.header-total-val{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--green);line-height:1}
+.header-total-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.header-user{font-size:10px;color:var(--muted);margin-top:8px;font-family:'IBM Plex Mono',monospace;display:flex;justify-content:space-between;align-items:center}
+.logout-btn{background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted);font-size:10px;padding:2px 7px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+
+/* Tabs */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:72px;z-index:99}
+.tabs::-webkit-scrollbar{display:none}
+.tab-btn{flex-shrink:0;padding:10px 14px;background:none;border:none;color:var(--muted);font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:color .2s,border-color .2s;white-space:nowrap}
+.tab-btn.active{color:var(--accent2);border-bottom-color:var(--accent)}
+
+/* Pages */
+.page{display:none;padding:16px}
+.page.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px}
+.card-title{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-bottom:12px}
+
+/* Form */
+.form-group{margin-bottom:12px}
+.form-label{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:5px}
+.form-input,.form-select,.form-textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:9px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;
+  font-size:14px;padding:10px 13px;outline:none;transition:border-color .2s;-webkit-appearance:none;
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent)}
+.form-textarea{resize:none;height:70px;font-size:13px}
+.form-row{display:flex;gap:10px}
+.form-row .form-group{flex:1}
+
+/* Code search */
+.code-search-wrap{position:relative}
+.code-results{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:var(--surface2);border:1px solid var(--accent);border-radius:10px;
+  max-height:300px;overflow-y:auto;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.7);
+}
+.cri{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s}
+.cri:last-child{border-bottom:none}
+.cri:active{background:var(--surface3)}
+.cri-code{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);font-weight:600;margin-bottom:2px}
+.cri-desc{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px}
+.cri-desc-en{font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:4px}
+.cri-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cri-spec{font-size:10px;color:var(--muted)}
+.cri-fee{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green);font-weight:600}
+mark{background:rgba(96,165,250,.22);color:var(--accent2);border-radius:2px;padding:0 1px;font-style:normal}
+
+/* Selected codes */
+.sci{display:flex;align-items:flex-start;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:7px}
+.sci-info{flex:1}
+.sci-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px}
+.sci-code{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);font-weight:600}
+.sci-fee{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green);font-weight:600}
+.sci-desc{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px}
+.sci-desc-en{font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:4px}
+.sci-spec{font-size:10px;color:var(--muted)}
+.sci-note{font-size:10px;color:var(--muted);margin-top:6px}
+.sci-role{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;margin-top:1px}
+.role-p{background:rgba(59,130,246,.15);color:var(--accent2)}
+.role-a{background:rgba(139,92,246,.15);color:var(--purple)}
+.del-btn{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 2px;flex-shrink:0}
+.tariff-select{margin-top:8px;padding:7px 10px;font-size:11px}
+
+/* Role selector */
+.role-sel{display:flex;gap:6px;margin-top:6px}
+.role-opt{flex:1;padding:7px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--muted);font-size:11px;font-family:'IBM Plex Sans',sans-serif;font-weight:600;text-align:center;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.5px}
+.role-opt.rp{background:rgba(59,130,246,.15);border-color:var(--accent);color:var(--accent2)}
+.role-opt.ra{background:rgba(139,92,246,.15);border-color:var(--purple);color:var(--purple)}
+
+/* Buttons */
+.btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s,transform .1s;text-align:center}
+.btn:active{transform:scale(.98);opacity:.85}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-danger{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.btn-green{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)}
+.btn-sm{display:inline-flex;align-items:center;gap:5px;width:auto;padding:6px 12px;font-size:12px;border-radius:7px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Stats grid */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px}
+.stat-label{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-bottom:5px}
+.stat-val{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;line-height:1}
+.stat-sub{font-size:10px;color:var(--muted);margin-top:3px}
+
+/* Period chips */
+.period-bar{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 10px}
+.period-bar::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:5px 12px;border-radius:20px;background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* Case list */
+.case-item{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 15px;margin-bottom:10px;cursor:pointer;transition:border-color .2s}
+.case-item:active{border-color:var(--accent)}
+.ci-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.ci-patient{font-size:14px;font-weight:600;color:var(--text);line-height:1.2}
+.ci-total{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--green);white-space:nowrap;margin-left:10px}
+.ci-date{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:3px}
+.ci-surgeon{font-size:12px;color:var(--muted);margin-bottom:6px}
+.ci-codes{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px}
+.code-pill{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 7px;border-radius:5px;background:rgba(59,130,246,.1);color:var(--accent2);border:1px solid rgba(59,130,246,.2)}
+.ci-meta{display:flex;gap:6px;flex-wrap:wrap}
+.mbadge{font-size:10px;padding:2px 7px;border-radius:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.mb-sp{background:rgba(139,92,246,.12);color:var(--purple)}
+.mb-dur{background:rgba(6,182,212,.12);color:var(--cyan)}
+.mb-pend{background:rgba(245,158,11,.12);color:var(--amber)}
+.mb-done{background:rgba(16,185,129,.12);color:var(--green)}
+
+/* Code browser */
+.sp-group{margin-bottom:16px}
+.sp-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;background:linear-gradient(90deg,var(--surface2),transparent);margin-bottom:6px;cursor:pointer}
+.sp-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text)}
+.sp-count{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.sp-toggle{color:var(--muted);font-size:14px}
+.sp-codes{display:none}
+.sp-codes.open{display:block}
+.cli{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.cli:last-child{border-bottom:none}
+.cli:active{background:var(--surface2)}
+.cli-left{flex:1;margin-right:10px}
+.cli-code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent2);font-weight:600;margin-bottom:2px}
+.cli-desc{font-size:12px;color:var(--text);line-height:1.4}
+.cli-desc-en{font-size:11px;color:var(--muted);line-height:1.45;margin-top:2px}
+.cli-sec{font-size:10px;color:var(--muted);margin-top:1px}
+.cli-fee{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green);font-weight:600;white-space:nowrap}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:200;display:none;align-items:flex-end}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-height:92dvh;overflow-y:auto;padding:18px 16px calc(var(--safe-bottom) + 20px);border-top:1px solid var(--border)}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
+.modal-title{font-family:'Playfair Display',serif;font-size:19px;font-weight:700;margin-bottom:14px}
+.drow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+.drow:last-child{border-bottom:none}
+.dkey{color:var(--muted);flex-shrink:0;margin-right:12px}
+.dval{color:var(--text);font-weight:500;text-align:right;word-break:break-word}
+.dval.mono{font-family:'IBM Plex Mono',monospace;color:var(--green)}
+
+/* Inline total */
+.inline-total{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:2px solid var(--border);margin-top:8px}
+.it-label{font-size:13px;font-weight:600;color:var(--text)}
+.it-val{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--green)}
+
+/* Toast */
+.toast{position:fixed;top:calc(var(--safe-top) + 8px);left:50%;transform:translateX(-50%) translateY(-70px);background:var(--surface2);border:1px solid var(--border);border-radius:24px;padding:9px 18px;font-size:13px;font-weight:500;z-index:500;transition:transform .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.success{color:var(--green);border-color:rgba(16,185,129,.3)}
+.toast.error{color:var(--red);border-color:rgba(239,68,68,.3)}
+.toast.info{color:var(--accent2);border-color:rgba(59,130,246,.3)}
+
+/* Bottom nav */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;padding:6px 0 calc(var(--safe-bottom) + 4px);z-index:150}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;background:none;border:none;cursor:pointer;color:var(--muted);font-size:9px;font-family:'IBM Plex Sans',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.5px;transition:color .2s}
+.nav-btn.active{color:var(--accent2)}
+.nav-btn svg{width:20px;height:20px}
+
+/* Misc */
+.divider{height:1px;background:var(--border);margin:14px 0}
+.sec-div{display:flex;align-items:center;gap:10px;margin:16px 0 12px}
+.sec-div-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+.sec-div-line{flex:1;height:1px;background:var(--border)}
+.empty{text-align:center;padding:50px 20px;color:var(--muted)}
+.empty-icon{font-size:44px;margin-bottom:12px;opacity:.4}
+.empty p{font-size:13px;line-height:1.7}
+.info-banner{background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);border-radius:9px;padding:10px 13px;font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+.info-banner strong{color:var(--accent2)}
+.gap{height:8px}
+.gap2{height:14px}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>Chirurgie<span>QC</span></h1>
+      <p>Facturation RAMQ</p>
+    </div>
+
+    <!-- STEP 1: Email entry -->
+    <div id="step1">
+      <div class="login-card">
+        <h2>Sign In</h2>
+        <p class="sub">Enter your email address. We'll send you an 8-digit verification code.</p>
+        <div class="form-group">
+          <label class="form-label">Email address</label>
+          <input id="loginEmail" class="form-input" type="email" placeholder="dr.name@example.com"
+            inputmode="email" autocomplete="email" style="font-size:15px"
+            onkeydown="if(event.key==='Enter') sendOTP()"/>
+        </div>
+        <button class="btn btn-primary" id="sendBtn" onclick="sendOTP()">Send verification code →</button>
+      </div>
+      <div class="login-note">
+        When signed in, your cases are saved to the server and accessible from any device.
+      </div>
+      <div class="local-mode-btn" onclick="useLocalMode()">Continue without signing in (local data only)</div>
+    </div>
+
+    <!-- STEP 2: OTP entry -->
+    <div id="step2" style="display:none">
+      <div class="login-card">
+        <h2>Verification code</h2>
+        <p class="sub">An 8-digit code was sent to<br><strong id="emailDisplay" style="color:var(--text)"></strong></p>
+        <div class="form-group">
+          <label class="form-label">Verification code</label>
+          <input id="otpInput" class="otp-input" type="text" placeholder="00000000"
+            inputmode="numeric" maxlength="8" autocomplete="one-time-code"
+            oninput="this.value=this.value.replace(/\D/g,'');if(this.value.length===8)verifyOTP()"
+            onkeydown="if(event.key==='Enter') verifyOTP()"/>
+        </div>
+        <button class="btn btn-primary" id="verifyBtn" onclick="verifyOTP()">Verify →</button>
+        <div class="gap"></div>
+        <button class="btn btn-secondary" onclick="goBack()" style="font-size:12px;padding:10px">← Change email</button>
+      </div>
+      <div class="login-note">
+        Didn't receive the code? <a onclick="resendOTP()">Resend</a> · Code expires in 10 minutes.
+      </div>
+    </div>
+
+  </div>
+</div><!-- /loginScreen -->
+
+<!-- ════════════════════════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════════════════════ -->
+<div id="mainApp">
+
+  <!-- Config warning (shown when Supabase not configured) -->
+  <div id="cfgBanner" class="config-banner" style="display:none">
+    ⚠️ <strong>Local mode</strong> — Supabase not configured. Data stored on this device only.
+    <button onclick="this.parentElement.style.display='none'">✕</button>
+  </div>
+
+  <!-- ── HEADER ── -->
+  <div class="app-header">
+    <div class="app-header-top">
+      <div class="app-logo">Chirurgie<span>QC</span><sub>RAMQ Billing</sub></div>
+      <div class="header-right">
+        <div class="header-total-val" id="hdrTotal">$0,00</div>
+        <div class="header-total-label">Grand total</div>
+      </div>
+    </div>
+    <div class="header-user">
+      <span id="hdrUser">Local mode</span>
+      <button class="logout-btn" onclick="logout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- ── TABS ── -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('dashboard')">📊 Dashboard</button>
+    <button class="tab-btn" onclick="showTab('add')">➕ New case</button>
+    <button class="tab-btn" onclick="showTab('cases')">📋 My cases</button>
+    <button class="tab-btn" onclick="showTab('codes')">🔍 RAMQ Codes</button>
+    <button class="tab-btn" onclick="showTab('export')">📤 Export</button>
+  </div>
+
+  <!-- ════════════ PAGE: DASHBOARD ════════════ -->
+  <div class="page active" id="page-dashboard">
+    <div class="period-bar">
+      <div class="chip active" onclick="setPeriod('week',this)">This week</div>
+      <div class="chip" onclick="setPeriod('month',this)">This month</div>
+      <div class="chip" onclick="setPeriod('last30',this)">30 days</div>
+      <div class="chip" onclick="setPeriod('all',this)">All</div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Billable total</div><div class="stat-val" style="color:var(--green)" id="dashTotal">$0</div><div class="stat-sub" id="dashCount">0 cas</div></div>
+      <div class="stat-card"><div class="stat-label">Submitted to RAMQ</div><div class="stat-val" style="color:var(--accent2)" id="dashBilled">$0</div><div class="stat-sub" id="dashBilledN">0 soumis</div></div>
+      <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-val" style="color:var(--amber)" id="dashPending">$0</div><div class="stat-sub" id="dashPendingN">0 en attente</div></div>
+      <div class="stat-card"><div class="stat-label">Unique acts</div><div class="stat-val" style="color:var(--purple)" id="dashActs">0</div><div class="stat-sub">RAMQ codes</div></div>
+    </div>
+    <div class="card"><div class="card-title">By specialty</div><div id="dashSpec"></div></div>
+    <div class="card"><div class="card-title">Recent cases</div><div id="dashRecent"></div></div>
+  </div>
+
+  <!-- ════════════ PAGE: ADD CASE ════════════ -->
+  <div class="page" id="page-add">
+    <div class="info-banner"><strong>Adding a case:</strong> Fill in the details, then search the official RAMQ catalog by code, French name, or English name.</div>
+
+    <div class="card">
+      <div class="card-title">Patient</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Patient name</label><input class="form-input" id="nPatient" placeholder="Last name, First name"/></div>
+        <div class="form-group" style="max-width:130px"><label class="form-label">NAM</label><input class="form-input" id="nNAM" placeholder="XXXX 0000 0000"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Date of operation</label><input class="form-input" type="date" id="nDate"/></div>
+        <div class="form-group" style="max-width:110px"><label class="form-label">Duration (min)</label><input class="form-input" type="number" id="nDuration" placeholder="90" min="1" inputmode="numeric"/></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Surgical team</div>
+      <div class="form-group"><label class="form-label">Lead surgeon</label><input class="form-input" id="nSurgeon" placeholder="Dr Nom"/></div>
+      <div class="form-group"><label class="form-label">Anesthesiologist</label><input class="form-input" id="nAnesth" placeholder="Dr Nom"/></div>
+      <div class="form-group"><label class="form-label">Co-surgeon(s) / Assistant(s)</label><input class="form-input" id="nAssists" placeholder="Dr Nom1, Dr Nom2…"/></div>
+      <div class="form-group"><label class="form-label">Resident / Extern</label><input class="form-input" id="nResident" placeholder="Name (code 5XXXXX for resident)"/></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Specialty</div>
+      <select class="form-select" id="nSpecialty" onchange="onSpecialtyChange()">
+        <option value="">— All specialties —</option>
+        <option>Chirurgie générale</option><option>Chirurgie orthopédique</option>
+        <option>Chirurgie cardiovasculaire et thoracique</option><option>Chirurgie plastique</option>
+        <option>Chirurgie vasculaire</option><option>Neurochirurgie</option>
+        <option>Obstétrique-gynécologie</option><option>Ophtalmologie</option>
+        <option>Oto-rhino-laryngologie</option><option>Urologie</option>
+        <option>Gastro-entérologie</option><option>Anesthésiologie</option>
+        <option>Cardiologie</option><option>Pédiatrie</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="card-title">RAMQ Billing Acts</div>
+      <div class="form-group">
+        <label class="form-label">Search billing act (French name, English name, or code)</label>
+        <div class="code-search-wrap">
+          <input class="form-input" id="codeSearch"
+            placeholder="e.g.: 00746  or  rhinosinusologie  or  laryngoscopy…"
+            oninput="searchCodes(this.value)" autocomplete="off"/>
+          <div class="code-results" id="codeResults" style="display:none"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your role for this act</label>
+        <div class="role-sel">
+          <div class="role-opt rp" id="roleP" onclick="setRole('primary')">🔪 Lead surgeon</div>
+          <div class="role-opt" id="roleA" onclick="setRole('assist')">🤝 Assistant / Co-surgeon</div>
+        </div>
+      </div>
+      <div id="selCodes"></div>
+      <div class="inline-total" id="codeTotal" style="display:none">
+        <span class="it-label">Acts subtotal</span>
+        <span class="it-val" id="codeTotalVal">$0,00</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Operative details</div>
+      <div class="form-group"><label class="form-label">Diagnosis / Indication</label><input class="form-input" id="nDiag" placeholder="e.g.: Appendicite aiguë perforée"/></div>
+      <div class="form-group"><label class="form-label">Operative notes</label><textarea class="form-textarea" id="nNotes" placeholder="Details, complications, notes…"></textarea></div>
+      <div class="form-group"><label class="form-label">Hospital / Facility</label><input class="form-input" id="nHospital" placeholder="ex: CHUM, MUHC, HGJ…"/></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Anesthesia</label>
+          <select class="form-select" id="nAnesthType"><option value="">—</option><option>Générale</option><option>Rachidienne</option><option>Péridurale</option><option>Régionale</option><option>Locale</option><option>MAC</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Approach</label>
+          <select class="form-select" id="nApproach"><option value="">—</option><option>Ouverte</option><option>Laparoscopique</option><option>Robotique</option><option>Endoscopique</option><option>Arthroscopique</option><option>Percutanée</option><option>Vaginale</option></select>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveCase()">💾 Save case</button>
+    <div class="gap"></div>
+    <button class="btn btn-secondary" onclick="clearForm()">↺ Clear form</button>
+    <div class="gap2"></div>
+  </div>
+
+  <!-- ════════════ PAGE: CASES ════════════ -->
+  <div class="page" id="page-cases">
+    <div class="period-bar" id="casesPeriodBar">
+      <div class="chip active" onclick="setCasePeriod('week',this)">This week</div>
+      <div class="chip" onclick="setCasePeriod('month',this)">This month</div>
+      <div class="chip" onclick="setCasePeriod('last30',this)">30 days</div>
+      <div class="chip" onclick="setCasePeriod('all',this)">All</div>
+    </div>
+    <div id="casesList"></div>
+  </div>
+
+  <!-- ════════════ PAGE: CODE BROWSER ════════════ -->
+  <div class="page" id="page-codes">
+    <div class="form-group" style="margin-bottom:10px">
+      <input class="form-input" id="browseQ" placeholder="🔍  Search — French name, English name, or code…" oninput="renderBrowser(this.value)" style="font-size:14px"/>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <select class="form-select" id="browseSpec" onchange="renderBrowser(document.getElementById('browseQ').value)" style="font-size:13px">
+        <option value="">— All specialties —</option>
+      </select>
+    </div>
+    <div id="codeBrowser"></div>
+  </div>
+
+  <!-- ════════════ PAGE: EXPORT ════════════ -->
+  <div class="page" id="page-export">
+    <div class="card">
+      <div class="card-title">Export settings</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">From</label><input class="form-input" type="date" id="expFrom" onchange="updateExpSummary()"/></div>
+        <div class="form-group"><label class="form-label">To</label><input class="form-input" type="date" id="expTo" onchange="updateExpSummary()"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">Surgeon (header)</label><input class="form-input" id="expSurgeon" placeholder="Dr Last First"/></div>
+      <div class="form-group"><label class="form-label">RAMQ billing number</label><input class="form-input" id="expRAMQ" placeholder="00000000" inputmode="numeric"/></div>
+      <div class="form-group"><label class="form-label">Status</label>
+        <select class="form-select" id="expStatus" onchange="updateExpSummary()">
+          <option value="all">All cases</option>
+          <option value="pending">Pending only</option>
+          <option value="billed">Submitted only</option>
+        </select>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Summary</div><div id="expSummary"></div></div>
+    <button class="btn btn-primary" onclick="exportExcel()">📊 Export Excel (.xlsx)</button>
+    <div class="gap"></div>
+    <button class="btn btn-secondary" onclick="exportCSV()">📄 Export CSV</button>
+    <div class="gap"></div>
+    <button class="btn btn-secondary" onclick="printView()">🖨️ Print preview</button>
+    <div class="gap2"></div>
+  </div>
+
+  <!-- ── CASE DETAIL MODAL ── -->
+  <div class="modal-overlay" id="caseModal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-title" id="caseModalTitle"></div>
+      <div id="caseModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ── BOTTOM NAV ── -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" onclick="showTab('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard
+    </button>
+    <button class="nav-btn" onclick="showTab('add')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>New
+    </button>
+    <button class="nav-btn" onclick="showTab('cases')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Cases
+    </button>
+    <button class="nav-btn" onclick="showTab('codes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Codes
+    </button>
+    <button class="nav-btn" onclick="showTab('export')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export
+    </button>
+  </div>
+
+</div><!-- /mainApp -->
+
+<script src="ramq_catalog.js"></script>
+<script>
+// ═════════════════════════════════════════════════════════════════════════════
+// SUPABASE CONFIGURATION
+// Replace the two placeholder strings below with your real values from
+// supabase.com → Project Settings → API
+// ═════════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL     = 'https://yvhnlvfhdrkcgopxkskg.supabase.co';   // ex: https://abcxyz.supabase.co
+const SUPABASE_ANON_KEY = 'sb_publishable_hsLD4WJXuQqKDyDVkODCug_AdxHQ6yK';
+
+const sb = (SUPABASE_URL.startsWith('VOTRE') || !window.supabase)
+  ? null
+  : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RAMQ PROCEDURE CODE DATABASE
+// Source: Manuel des médecins spécialistes — Rémunération à l'acte (RAMQ)
+// ═════════════════════════════════════════════════════════════════════════════
+const DB = (window.RAMQ_CATALOG || []).map(entry => {
+  const feeOptions = Array.isArray(entry.feeOptions) ? entry.feeOptions : [];
+  return {
+    ...entry,
+    feeOptions,
+    fee: feeOptions[0]?.amount || 0
+  };
+});
+const DB_BY_ID = new Map(DB.map(entry => [entry.id, entry]));
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AUTH STATE
+// ═════════════════════════════════════════════════════════════════════════════
+let currentUser = null;
+
+async function sendOTP() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  if (!email || !email.includes('@')) { toast('Invalid email address','error'); return; }
+  if (!sb) { toast('Supabase not configured — use local mode','error'); return; }
+  const btn = document.getElementById('sendBtn');
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  btn.textContent = 'Send verification code →'; btn.disabled = false;
+  if (error) { toast('Erreur: ' + error.message, 'error'); return; }
+  document.getElementById('emailDisplay').textContent = email;
+  document.getElementById('step1').style.display = 'none';
+  document.getElementById('step2').style.display = 'block';
+  document.getElementById('otpInput').focus();
+  toast('Code sent! Check your email.','success');
+}
+
+async function verifyOTP() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const token = document.getElementById('otpInput').value.replace(/\D/g,'').trim();
+  if (token.length !== 8) { toast('Enter the 8-digit code from your email','error'); return; }
+  const btn = document.getElementById('verifyBtn');
+  btn.textContent = 'Verifying…'; btn.disabled = true;
+  const { data, error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+  btn.textContent = 'Verify →'; btn.disabled = false;
+  if (error) { toast('Invalid or expired code','error'); document.getElementById('otpInput').value=''; return; }
+  currentUser = data.user;
+  await loadFromServer();
+  launchApp();
+}
+
+async function resendOTP() {
+  document.getElementById('otpInput').value = '';
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('step1').style.display = 'block';
+  await sendOTP();
+}
+
+function goBack() {
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('step1').style.display = 'block';
+  document.getElementById('otpInput').value = '';
+}
+
+function useLocalMode() {
+  currentUser = null;
+  launchApp();
+}
+
+async function logout() {
+  if (sb && currentUser) await sb.auth.signOut();
+  currentUser = null;
+  cases = [];
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('step1').style.display = 'block';
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('otpInput').value = '';
+  document.getElementById('loginScreen').style.display = 'flex';
+  toast('Signed out','info');
+}
+
+function launchApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  if (!sb) document.getElementById('cfgBanner').style.display = 'flex';
+  document.getElementById('hdrUser').textContent = currentUser ? currentUser.email : 'Local mode';
+  init();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SERVER SYNC (Supabase)
+// ═════════════════════════════════════════════════════════════════════════════
+async function loadFromServer() {
+  if (!sb || !currentUser) return;
+  const { data, error } = await sb.from('cases')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('date', { ascending: false });
+  if (error) { console.warn('Load error:', error); return; }
+  if (data) cases = data.map(r => ({ ...r.payload, id: r.id }));
+}
+
+async function saveToServer(c) {
+  if (!sb || !currentUser) return;
+  await sb.from('cases').upsert({
+    id: c.id,
+    user_id: currentUser.id,
+    date: c.date,
+    payload: c
+  }, { onConflict: 'id' });
+}
+
+async function deleteFromServer(id) {
+  if (!sb || !currentUser) return;
+  await sb.from('cases').delete().eq('id', id).eq('user_id', currentUser.id);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// APP STATE
+// ═════════════════════════════════════════════════════════════════════════════
+let cases = [];
+let settings = JSON.parse(localStorage.getItem('cqSettings') || '{}');
+let selectedCodes = [];
+let currentRole = 'primary';
+let dashPeriod = 'week';
+let casesPeriod = 'week';
+
+function saveCasesLocal() { if (!currentUser) localStorage.setItem('cqCases', JSON.stringify(cases)); }
+function loadCasesLocal() { if (!currentUser) cases = JSON.parse(localStorage.getItem('cqCases') || '[]'); }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// INIT
+// ═════════════════════════════════════════════════════════════════════════════
+function init() {
+  if (!currentUser) loadCasesLocal();
+  document.getElementById('nDate').value = today();
+  if (settings.surgeon) document.getElementById('nSurgeon').value = settings.surgeon;
+  if (settings.surgeon) document.getElementById('expSurgeon').value = settings.surgeon;
+  if (settings.ramqNum) document.getElementById('expRAMQ').value = settings.ramqNum;
+  const now = new Date();
+  document.getElementById('expFrom').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  document.getElementById('expTo').value = today();
+  populateBrowseSpec();
+  renderDashboard();
+  renderCases();
+  renderBrowser('');
+  updateExpSummary();
+  updateHeader();
+}
+
+function today() { return new Date().toISOString().split('T')[0]; }
+
+async function checkSession() {
+  if (!sb) {
+    document.getElementById('loginScreen').style.display = 'flex';
+    return;
+  }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    await loadFromServer();
+    launchApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SMART SEARCH ENGINE
+// ═════════════════════════════════════════════════════════════════════════════
+function norm(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/œ/g,'oe')
+    .replace(/æ/g,'ae')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/['’]/g,"'")
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+
+DB.forEach(entry => {
+  entry._codeNorm = norm(entry.code);
+  entry._descNorm = norm(entry.desc);
+  entry._descEnNorm = norm(entry.descEn);
+  entry._sectionNorm = norm(entry.section);
+  entry._specialtyNorm = norm(entry.specialty);
+  entry._contextNorm = norm(entry.context);
+  entry._searchNorm = norm([
+    entry.code, entry.desc, entry.descEn, entry.section, entry.sectionEn,
+    entry.specialty, entry.specialtyEn, entry.context, entry.contextEn
+  ].join(' '));
+});
+
+function getFeeOptions(c) {
+  if (Array.isArray(c.feeOptions) && c.feeOptions.length) return c.feeOptions;
+  if (typeof c.fee === 'number') return [{ label: 'Tarif', amount: c.fee }];
+  return [];
+}
+
+function getDefaultFeeIndex(c, role='primary') {
+  const opts = getFeeOptions(c);
+  if (!opts.length) return 0;
+  if (role === 'assist') {
+    const idx = opts.findIndex(opt => /r\s*=\s*2/i.test(opt.label || '') || /assistant|collaborateur/i.test(norm(opt.label || '')));
+    if (idx >= 0) return idx;
+  }
+  return 0;
+}
+
+function getSelectedFeeIndex(c) {
+  const opts = getFeeOptions(c);
+  if (!opts.length) return -1;
+  const idx = Number.isInteger(c.selectedFeeIndex) ? c.selectedFeeIndex : getDefaultFeeIndex(c, c.role);
+  return Math.max(0, Math.min(idx, opts.length - 1));
+}
+
+function getSelectedFeeOption(c) {
+  const opts = getFeeOptions(c);
+  const idx = getSelectedFeeIndex(c);
+  return idx >= 0 ? opts[idx] : null;
+}
+
+function getBaseFee(c) {
+  const opts = getFeeOptions(c);
+  return opts[0]?.amount ?? 0;
+}
+
+function getAppliedFee(c) {
+  const selected = getSelectedFeeOption(c);
+  if (selected) return selected.amount;
+  if (typeof c.fee === 'number') return c.role === 'assist' ? c.fee * 0.5 : c.fee;
+  return 0;
+}
+
+function getFeeLabel(c) {
+  return getSelectedFeeOption(c)?.label || '';
+}
+
+function formatFeeSummary(c) {
+  const opts = getFeeOptions(c);
+  if (!opts.length) return 'Tarif à vérifier';
+  return opts
+    .slice(0, 2)
+    .map(opt => `${opt.label}: ${fmt(opt.amount)}`)
+    .join(' · ') + (opts.length > 2 ? ` · +${opts.length - 2}` : '');
+}
+
+function scoreCode(c, rawQ) {
+  const q = norm(rawQ).trim();
+  if (!q) return 0;
+  const terms = q.split(/\s+/).filter(Boolean);
+  const cn = c._codeNorm || norm(c.code);
+  const dn = c._descNorm || norm(c.desc);
+  const den = c._descEnNorm || norm(c.descEn);
+  const sn = c._sectionNorm || norm(c.section);
+  const spn = c._specialtyNorm || norm(c.specialty);
+  const ctx = c._contextNorm || norm(c.context);
+  const blob = c._searchNorm || norm([c.code, c.desc, c.descEn, c.section, c.sectionEn, c.specialty, c.specialtyEn, c.context, c.contextEn].join(' '));
+  let score = 0;
+  if (cn === q) score += 20000;
+  else if (cn.startsWith(q)) score += 12000;
+  else if (cn.includes(q)) score += 7000;
+  if (dn.includes(q)) score += 4500;
+  if (den.includes(q)) score += 4200;
+  if (dn.startsWith(q)) score += 1200;
+  if (den.startsWith(q)) score += 1400;
+  if (sn.includes(q)) score += 1800;
+  if (spn.includes(q)) score += 1400;
+  if (ctx.includes(q)) score += 1200;
+  if (blob.includes(q)) score += 500;
+  for (const t of terms) {
+    if (dn.includes(t)) score += 320;
+    if (den.includes(t)) score += 300;
+    if (sn.includes(t)) score += 90;
+    if (spn.includes(t)) score += 70;
+    if (ctx.includes(t)) score += 60;
+    if (blob.includes(t)) score += 25;
+  }
+  if (terms.length && terms.every(t => blob.includes(t))) score += 700;
+  return score;
+}
+
+function hlText(text, rawQ) {
+  const terms = norm(rawQ).trim().split(/\s+/).filter(Boolean);
+  // Work on the raw text so marks are clean, then escape
+  const escaped = (text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const allT = [norm(rawQ).trim(), ...terms].filter(Boolean).sort((a,b)=>b.length-a.length);
+  let out = escaped;
+  for (const t of allT) {
+    if (!t) continue;
+    out = out.replace(new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi'), '<mark>$1</mark>');
+  }
+  return out;
+}
+
+function searchCodes(query) {
+  const q = query.trim();
+  const spec = document.getElementById('nSpecialty').value;
+  const el = document.getElementById('codeResults');
+  if (!q) { el.style.display = 'none'; return; }
+
+  const scorePool = pool => pool
+    .map(c => ({ c, s: scoreCode(c, q) }))
+    .filter(x => x.s > 0)
+    .sort((a,b) => b.s - a.s)
+    .slice(0, 25);
+  let pool = spec ? DB.filter(c => c.specialty === spec) : DB;
+  let scored = scorePool(pool);
+  if (!scored.length && spec) scored = scorePool(DB);
+
+  if (!scored.length) {
+    el.innerHTML = `<div style="padding:12px 14px;font-size:12px;color:var(--muted)">No results for «&nbsp;${esc(q)}&nbsp;». Try a different term.</div>`;
+    el.style.display = 'block'; return;
+  }
+
+  el.innerHTML = scored.map(({c}) => `
+    <div class="cri" onclick="pickCodeById('${c.id}')">
+      <div class="cri-code">${esc(c.code)}</div>
+      <div class="cri-desc">${esc(c.desc)}</div>
+      ${c.descEn ? `<div class="cri-desc-en">${esc(c.descEn)}</div>` : ''}
+      <div class="cri-meta">
+        <span class="cri-spec">${esc(c.specialty)} · ${esc(c.section)}</span>
+        <span class="cri-fee">${esc(formatFeeSummary(c))}</span>
+      </div>
+    </div>`).join('');
+  el.style.display = 'block';
+}
+
+function pickCodeById(id) {
+  const c = DB_BY_ID.get(id);
+  if (!c) return;
+  const dup = selectedCodes.some(x => x.id === c.id && x.role === currentRole);
+  if (dup) { toast('This act is already added for this role','info'); return; }
+  selectedCodes.push({ ...c, role: currentRole, selectedFeeIndex: getDefaultFeeIndex(c, currentRole) });
+  document.getElementById('codeSearch').value = '';
+  document.getElementById('codeResults').style.display = 'none';
+  renderSelCodes();
+}
+
+function onSpecialtyChange() { searchCodes(document.getElementById('codeSearch').value); }
+function setRole(r) {
+  currentRole = r;
+  document.getElementById('roleP').className = 'role-opt' + (r==='primary'?' rp':'');
+  document.getElementById('roleA').className = 'role-opt' + (r==='assist'?' ra':'');
+}
+function removeCode(i) { selectedCodes.splice(i,1); renderSelCodes(); }
+function setCodeFeeOption(i, selectedFeeIndex) {
+  if (!selectedCodes[i]) return;
+  selectedCodes[i].selectedFeeIndex = parseInt(selectedFeeIndex, 10) || 0;
+  renderSelCodes();
+}
+
+function renderSelCodes() {
+  const el = document.getElementById('selCodes');
+  const tot = document.getElementById('codeTotal');
+  const tv = document.getElementById('codeTotalVal');
+  if (!selectedCodes.length) { el.innerHTML=''; tot.style.display='none'; return; }
+  el.innerHTML = selectedCodes.map((c,i) => {
+    const fee = getAppliedFee(c);
+    const feeLabel = getFeeLabel(c);
+    const feeOptions = getFeeOptions(c);
+    return `<div class="sci">
+      <div class="sci-info">
+        <div class="sci-top"><span class="sci-code">${c.code}</span><span class="sci-fee">${fmt(fee)}</span></div>
+        <div class="sci-desc">${esc(c.desc)}</div>
+        ${c.descEn ? `<div class="sci-desc-en">${esc(c.descEn)}</div>` : ''}
+        <div class="sci-spec">${esc(c.specialty)} · ${esc(c.section)}</div>
+        ${feeOptions.length > 1
+          ? `<select class="form-select tariff-select" onchange="setCodeFeeOption(${i}, this.value)">
+              ${feeOptions.map((opt, idx) => `<option value="${idx}" ${idx===getSelectedFeeIndex(c)?'selected':''}>${esc(opt.label)} · ${fmt(opt.amount)}</option>`).join('')}
+            </select>`
+          : feeLabel ? `<div class="sci-note">Tariff: ${esc(feeLabel)}${c.units?.length ? ` · Units: ${c.units.join(', ')}` : ''}</div>` : ''
+        }
+      </div>
+      <div class="sci-role ${c.role==='primary'?'role-p':'role-a'}">${c.role==='primary'?'Lead surgeon':'Assistant'}</div>
+      <button class="del-btn" onclick="removeCode(${i})">✕</button>
+    </div>`;
+  }).join('');
+  const sub = selectedCodes.reduce((s,c)=>s+getAppliedFee(c),0);
+  tv.textContent = fmt(sub); tot.style.display = 'flex';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SAVE CASE
+// ═════════════════════════════════════════════════════════════════════════════
+async function saveCase() {
+  const patient = document.getElementById('nPatient').value.trim();
+  const date = document.getElementById('nDate').value;
+  const surgeon = document.getElementById('nSurgeon').value.trim();
+  if (!patient) { toast('Patient name required','error'); return; }
+  if (!date) { toast('Date required','error'); return; }
+  if (!surgeon) { toast('Surgeon name required','error'); return; }
+  if (!selectedCodes.length) { toast('Add at least one RAMQ billing act','error'); return; }
+
+  const c = {
+    id: Date.now().toString(),
+    patient, date, surgeon,
+    nam: document.getElementById('nNAM').value.trim(),
+    duration: parseInt(document.getElementById('nDuration').value)||0,
+    anesthesiologist: document.getElementById('nAnesth').value.trim(),
+    assistants: document.getElementById('nAssists').value.trim(),
+    resident: document.getElementById('nResident').value.trim(),
+    specialty: document.getElementById('nSpecialty').value,
+    diagnosis: document.getElementById('nDiag').value.trim(),
+    notes: document.getElementById('nNotes').value.trim(),
+    hospital: document.getElementById('nHospital').value.trim(),
+    anesthType: document.getElementById('nAnesthType').value,
+    approach: document.getElementById('nApproach').value,
+    codes: selectedCodes.map(x=>({...x})),
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+
+  cases.unshift(c);
+  saveCasesLocal();
+  if (currentUser) await saveToServer(c);
+
+  // Save surgeon settings
+  if (surgeon) { settings.surgeon = surgeon; localStorage.setItem('cqSettings', JSON.stringify(settings)); }
+
+  clearForm();
+  showTab('cases');
+  toast('Case saved!','success');
+  updateHeader();
+}
+
+function clearForm() {
+  ['nPatient','nNAM','nDuration','nAnesth','nAssists','nResident','nDiag','nNotes','nHospital'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nDate').value = today();
+  document.getElementById('nSpecialty').value = '';
+  document.getElementById('nAnesthType').value = '';
+  document.getElementById('nApproach').value = '';
+  if (settings.surgeon) document.getElementById('nSurgeon').value = settings.surgeon;
+  else document.getElementById('nSurgeon').value = '';
+  selectedCodes = [];
+  renderSelCodes();
+  document.getElementById('codeSearch').value = '';
+  document.getElementById('codeResults').style.display = 'none';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TABS & NAV
+// ═════════════════════════════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn,.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const idx = ['dashboard','add','cases','codes','export'].indexOf(name);
+  document.querySelectorAll('.tab-btn')[idx]?.classList.add('active');
+  document.querySelectorAll('.nav-btn')[idx]?.classList.add('active');
+  if (name==='dashboard') renderDashboard();
+  if (name==='cases') renderCases();
+  if (name==='export') updateExpSummary();
+  if (name==='codes') renderBrowser(document.getElementById('browseQ').value);
+  document.getElementById('codeResults').style.display = 'none';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PERIODS
+// ═════════════════════════════════════════════════════════════════════════════
+function setPeriod(p,el) {
+  dashPeriod=p;
+  document.querySelectorAll('#page-dashboard .chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active'); renderDashboard();
+}
+function setCasePeriod(p,el) {
+  casesPeriod=p;
+  document.querySelectorAll('#page-cases .chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active'); renderCases();
+}
+function filterPeriod(arr,p) {
+  const now = new Date(); now.setHours(23,59,59);
+  return arr.filter(c=>{
+    const d = new Date(c.date);
+    if (p==='week') { const s=new Date(now); s.setDate(now.getDate()-now.getDay()); s.setHours(0,0,0); return d>=s&&d<=now; }
+    if (p==='month') return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+    if (p==='last30') { const s=new Date(now); s.setDate(s.getDate()-30); return d>=s; }
+    return true;
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═════════════════════════════════════════════════════════════════════════════
+function caseTotal(c) { return (c.codes||[]).reduce((s,x)=>s+getAppliedFee(x),0); }
+
+function renderDashboard() {
+  const f = filterPeriod(cases, dashPeriod);
+  const billed = f.filter(c=>c.status==='billed');
+  const pending = f.filter(c=>c.status!=='billed');
+  const tot = f.reduce((s,c)=>s+caseTotal(c),0);
+  const allCodes = new Set(f.flatMap(c=>(c.codes||[]).map(x=>x.code)));
+
+  document.getElementById('dashTotal').textContent = fmt(tot);
+  document.getElementById('dashCount').textContent = f.length+' case'+(f.length!==1?'s':'');
+  document.getElementById('dashBilled').textContent = fmt(billed.reduce((s,c)=>s+caseTotal(c),0));
+  document.getElementById('dashBilledN').textContent = billed.length+' submitted';
+  document.getElementById('dashPending').textContent = fmt(pending.reduce((s,c)=>s+caseTotal(c),0));
+  document.getElementById('dashPendingN').textContent = pending.length+' pending';
+  document.getElementById('dashActs').textContent = allCodes.size;
+
+  const sm = {}; f.forEach(c=>{const sp=c.specialty||'Non spécifié'; if(!sm[sp]){sm[sp]={n:0,t:0}} sm[sp].n++; sm[sp].t+=caseTotal(c);});
+  document.getElementById('dashSpec').innerHTML = Object.keys(sm).length
+    ? Object.entries(sm).sort((a,b)=>b[1].t-a[1].t).map(([sp,v])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div><div style="font-size:13px;font-weight:500">${esc(sp)}</div><div style="font-size:11px;color:var(--muted)">${v.n} case${v.n!==1?'s':''}</div></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green);font-weight:600">${fmt(v.t)}</div>
+      </div>`).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:8px 0">No cases for this period.</div>';
+
+  const recent = [...f].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+  document.getElementById('dashRecent').innerHTML = recent.length
+    ? recent.map(c=>`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="showDetail('${c.id}')">
+        <div><div style="font-size:13px;font-weight:600">${esc(c.patient)}</div><div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace">${c.date}</div></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green);font-weight:600">${fmt(caseTotal(c))}</div>
+      </div>`).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:8px 0">No recent cases.</div>';
+}
+
+function updateHeader() {
+  const tot = cases.reduce((s,c)=>s+caseTotal(c),0);
+  document.getElementById('hdrTotal').textContent = fmt(tot);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CASES LIST
+// ═════════════════════════════════════════════════════════════════════════════
+function renderCases() {
+  const f = filterPeriod(cases, casesPeriod).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const el = document.getElementById('casesList');
+  if (!f.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><p>No cases for this period.<br>Tap <strong>New case</strong> to get started.</p></div>`; return; }
+  el.innerHTML = f.map(c=>{
+    const codes = c.codes.slice(0,4);
+    return `<div class="case-item" onclick="showDetail('${c.id}')">
+      <div class="ci-top"><div class="ci-patient">${esc(c.patient)}</div><div class="ci-total">${fmt(caseTotal(c))}</div></div>
+      <div class="ci-date">${c.date}${c.duration?' · '+c.duration+' min':''}</div>
+      <div class="ci-surgeon">Dr ${esc(c.surgeon)}${c.hospital?' · '+esc(c.hospital):''}</div>
+      <div class="ci-codes">${codes.map(x=>`<span class="code-pill">${x.code}</span>`).join('')}${c.codes.length>4?`<span class="code-pill">+${c.codes.length-4}</span>`:''}</div>
+      <div class="ci-meta">
+        ${c.specialty?`<span class="mbadge mb-sp">${esc(c.specialty.split(' ').slice(0,2).join(' '))}</span>`:''}
+        ${c.duration?`<span class="mbadge mb-dur">${c.duration} min</span>`:''}
+        <span class="mbadge ${c.status==='billed'?'mb-done':'mb-pend'}">${c.status==='billed'?'Submitted':'Pending'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CASE DETAIL MODAL
+// ═════════════════════════════════════════════════════════════════════════════
+function showDetail(id) {
+  const c = cases.find(x=>x.id===id); if (!c) return;
+  document.getElementById('caseModalTitle').textContent = c.patient;
+  document.getElementById('caseModalBody').innerHTML = `
+    <div class="drow"><span class="dkey">Date</span><span class="dval mono">${c.date}</span></div>
+    <div class="drow"><span class="dkey">Duration</span><span class="dval">${c.duration?c.duration+' min':'—'}</span></div>
+    <div class="drow"><span class="dkey">NAM</span><span class="dval mono">${c.nam||'—'}</span></div>
+    <div class="drow"><span class="dkey">Lead surgeon</span><span class="dval">Dr ${esc(c.surgeon)}</span></div>
+    <div class="drow"><span class="dkey">Anesthesiologist</span><span class="dval">${c.anesthesiologist?'Dr '+esc(c.anesthesiologist):'—'}</span></div>
+    <div class="drow"><span class="dkey">Assistant(s)</span><span class="dval">${c.assistants||'—'}</span></div>
+    <div class="drow"><span class="dkey">Resident</span><span class="dval">${c.resident||'—'}</span></div>
+    <div class="drow"><span class="dkey">Specialty</span><span class="dval">${c.specialty||'—'}</span></div>
+    <div class="drow"><span class="dkey">Hospital / Facility</span><span class="dval">${c.hospital||'—'}</span></div>
+    <div class="drow"><span class="dkey">Anesthesia</span><span class="dval">${c.anesthType||'—'}</span></div>
+    <div class="drow"><span class="dkey">Approach</span><span class="dval">${c.approach||'—'}</span></div>
+    <div class="drow"><span class="dkey">Diagnosis</span><span class="dval">${c.diagnosis||'—'}</span></div>
+    <div class="drow"><span class="dkey">Status</span><span class="dval" style="color:${c.status==='billed'?'var(--green)':'var(--amber)'}">${c.status==='billed'?'✓ Submitted to RAMQ':'⏳ Pending'}</span></div>
+    ${c.notes?`<div class="drow" style="flex-direction:column;gap:5px"><span class="dkey">Notes</span><span style="font-size:12px;color:var(--text);line-height:1.6">${esc(c.notes)}</span></div>`:''}
+    <div class="sec-div"><span class="sec-div-lbl">RAMQ Billing Acts</span><div class="sec-div-line"></div></div>
+    ${(c.codes||[]).map(x=>{
+      const fee = getAppliedFee(x);
+      const feeLabel = getFeeLabel(x);
+      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:7px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);font-weight:600">${x.code}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green);font-weight:600">${fmt(fee)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px">${esc(x.desc)}</div>
+        ${x.descEn ? `<div style="font-size:11px;color:var(--muted);line-height:1.45;margin-bottom:3px">${esc(x.descEn)}</div>` : ''}
+        <div style="font-size:10px;color:var(--muted)">${esc(x.specialty)} · ${esc(x.section)} · ${feeLabel ? `Tariff: ${esc(feeLabel)} · ` : ''}<span style="color:${x.role==='assist'?'var(--purple)':'var(--accent2)'};font-weight:600">${x.role==='assist'?'Assistant / Co-surgeon':'Lead surgeon'}</span></div>
+      </div>`;
+    }).join('')}
+    <div class="inline-total"><span class="it-label">Billable total</span><span class="it-val">${fmt(caseTotal(c))}</span></div>
+    <div class="btn-row" style="margin-top:16px">
+      ${c.status!=='billed'
+        ?`<button class="btn btn-green btn-sm" onclick="markBilled('${c.id}')">✓ Mark as submitted</button>`
+        :`<button class="btn btn-secondary btn-sm" onclick="markPending('${c.id}')">↩ Revert to pending</button>`}
+      <button class="btn btn-secondary btn-sm" onclick="editCase('${c.id}')">✏️ Edit</button>
+      <button class="btn btn-danger btn-sm" onclick="delCase('${c.id}')">🗑 Delete</button>
+    </div>`;
+  document.getElementById('caseModal').classList.add('open');
+}
+
+document.getElementById('caseModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) e.currentTarget.classList.remove('open'); });
+
+async function markBilled(id) {
+  const c=cases.find(x=>x.id===id); if(c){c.status='billed';c.billedAt=new Date().toISOString();}
+  saveCasesLocal(); if(currentUser) await saveToServer(c);
+  document.getElementById('caseModal').classList.remove('open');
+  renderCases(); renderDashboard(); toast('Marked as submitted','success');
+}
+async function markPending(id) {
+  const c=cases.find(x=>x.id===id); if(c){c.status='pending';delete c.billedAt;}
+  saveCasesLocal(); if(currentUser) await saveToServer(c);
+  document.getElementById('caseModal').classList.remove('open');
+  renderCases(); renderDashboard(); toast('Reverted to pending','info');
+}
+async function delCase(id) {
+  if(!confirm('Delete this case?')) return;
+  cases = cases.filter(x=>x.id!==id);
+  saveCasesLocal(); if(currentUser) await deleteFromServer(id);
+  document.getElementById('caseModal').classList.remove('open');
+  renderCases(); renderDashboard(); updateHeader(); toast('Case deleted','success');
+}
+function editCase(id) {
+  document.getElementById('caseModal').classList.remove('open');
+  const c = cases.find(x=>x.id===id); if(!c) return;
+  document.getElementById('nPatient').value=c.patient;
+  document.getElementById('nNAM').value=c.nam||'';
+  document.getElementById('nDate').value=c.date;
+  document.getElementById('nDuration').value=c.duration||'';
+  document.getElementById('nSurgeon').value=c.surgeon;
+  document.getElementById('nAnesth').value=c.anesthesiologist||'';
+  document.getElementById('nAssists').value=c.assistants||'';
+  document.getElementById('nResident').value=c.resident||'';
+  document.getElementById('nSpecialty').value=c.specialty||'';
+  document.getElementById('nDiag').value=c.diagnosis||'';
+  document.getElementById('nNotes').value=c.notes||'';
+  document.getElementById('nHospital').value=c.hospital||'';
+  document.getElementById('nAnesthType').value=c.anesthType||'';
+  document.getElementById('nApproach').value=c.approach||'';
+  selectedCodes = (c.codes||[]).map(x=>({...x}));
+  renderSelCodes();
+  cases = cases.filter(x=>x.id!==id);
+  saveCasesLocal();
+  showTab('add');
+  toast('Case loaded for editing','info');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CODE BROWSER
+// ═════════════════════════════════════════════════════════════════════════════
+function populateBrowseSpec() {
+  const specs = [...new Set(DB.map(c=>c.specialty))].sort();
+  const sel = document.getElementById('browseSpec');
+  sel.innerHTML = '<option value="">— All specialties —</option>';
+  specs.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+}
+
+function renderBrowser(query) {
+  const q = (query||'').trim();
+  const spec = document.getElementById('browseSpec').value;
+  let pool = spec ? DB.filter(c=>c.specialty===spec) : DB;
+  let dp;
+  if (q.length>=1) {
+    dp = pool.map(c=>({c,s:scoreCode(c,q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>x.c);
+    if (!dp.length && spec) dp = DB.map(c=>({c,s:scoreCode(c,q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>x.c);
+  } else { dp = pool; }
+
+  const el = document.getElementById('codeBrowser');
+  if (!dp.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><p>No results for «&nbsp;${esc(q)}&nbsp;».</p></div>`; return; }
+
+  const groups = {};
+  dp.forEach(c=>{ if(!groups[c.specialty]) groups[c.specialty]={}; if(!groups[c.specialty][c.section]) groups[c.specialty][c.section]=[]; groups[c.specialty][c.section].push(c); });
+  const searching = q.length>=1;
+
+  el.innerHTML = Object.entries(groups).sort(([a],[b])=>a.localeCompare(b)).map(([sp,secs])=>{
+    const n = Object.values(secs).flat().length;
+    const gid = 'g_'+sp.replace(/[^a-z]/gi,'');
+    return `<div class="sp-group">
+      <div class="sp-header" onclick="toggleGroup('${gid}')">
+        <span class="sp-name">${esc(sp)}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="sp-count">${n} acts</span>
+          <span class="sp-toggle" id="t_${gid}">${searching?'▼':'▶'}</span>
+        </div>
+      </div>
+      <div class="sp-codes ${searching?'open':''}" id="${gid}">
+        ${Object.entries(secs).map(([sec,codes])=>`
+          <div style="margin-bottom:4px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:5px 12px 3px;background:var(--surface3);border-radius:5px;margin-bottom:2px">${esc(sec)}</div>
+            ${codes.map(c=>{
+              return `<div class="cli" onclick="addFromBrowserById('${c.id}')">
+                <div class="cli-left">
+                  <div class="cli-code">${esc(c.code)}</div>
+                  <div class="cli-desc">${esc(c.desc)}</div>
+                  ${c.descEn ? `<div class="cli-desc-en">${esc(c.descEn)}</div>` : ''}
+                  <div class="cli-sec">${esc(c.context || `${c.specialty} · ${c.section}`)}</div>
+                </div>
+                <div class="cli-fee">${esc(formatFeeSummary(c))}</div>
+              </div>`;
+            }).join('')}
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleGroup(id) {
+  const el = document.getElementById(id);
+  const tog = document.getElementById('t_'+id);
+  el.classList.toggle('open');
+  tog.textContent = el.classList.contains('open') ? '▼' : '▶';
+}
+
+function addFromBrowserById(id) {
+  const c = DB_BY_ID.get(id);
+  if (!c) return;
+  selectedCodes.push({...c, role:'primary', selectedFeeIndex:getDefaultFeeIndex(c,'primary')});
+  showTab('add'); renderSelCodes();
+  toast('Act added — check the role','success');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═════════════════════════════════════════════════════════════════════════════
+function getExpList() {
+  const from = document.getElementById('expFrom').value;
+  const to = document.getElementById('expTo').value;
+  const st = document.getElementById('expStatus').value;
+  return cases.filter(c=>{
+    if(from && c.date<from) return false;
+    if(to && c.date>to) return false;
+    if(st==='pending' && c.status!=='pending') return false;
+    if(st==='billed' && c.status!=='billed') return false;
+    return true;
+  });
+}
+
+function updateExpSummary() {
+  const list = getExpList();
+  const tot = list.reduce((s,c)=>s+caseTotal(c),0);
+  document.getElementById('expSummary').innerHTML = list.length ? `
+    <div class="drow"><span class="dkey">Number of cases</span><span class="dval">${list.length}</span></div>
+    <div class="drow"><span class="dkey">Pending</span><span class="dval" style="color:var(--amber)">${list.filter(c=>c.status!=='billed').length}</span></div>
+    <div class="drow"><span class="dkey">Submitted to RAMQ</span><span class="dval" style="color:var(--green)">${list.filter(c=>c.status==='billed').length}</span></div>
+    <div class="drow"><span class="dkey">Billable total</span><span class="dval mono" style="font-size:17px;color:var(--green)">${fmt(tot)}</span></div>`
+    : '<div style="color:var(--muted);font-size:13px">No cases in this date range.</div>';
+}
+
+function exportExcel() {
+  const list = getExpList();
+  if (!list.length) { toast('No cases to export','error'); return; }
+  const surgeon = document.getElementById('expSurgeon').value || settings.surgeon || 'Surgeon';
+  const ramq = document.getElementById('expRAMQ').value || '';
+  const from = document.getElementById('expFrom').value;
+  const to = document.getElementById('expTo').value;
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1 — Summary
+  const s1 = [
+    ['RAMQ BILLING — STATEMENT OF ACTS','','','','','','','','','','','','','',''],
+    [`Surgeon: ${surgeon}`,'',`RAMQ #: ${ramq}`,'',`Exported: ${today()}`,'','','','','','','','','',''],
+    [`Period: ${from} to ${to}`,'','','','','','','','','','','','','',''],
+    [],
+    ['Date','Patient','NAM','Surgeon','Anesthesiologist','Assistant(s)','Duration (min)','Hospital','Specialty','Approach','Anesthesia','Diagnosis','Status','# acts','Total ($)']
+  ];
+  list.forEach(c=>s1.push([c.date,c.patient,c.nam||'',c.surgeon,c.anesthesiologist||'',c.assistants||'',c.duration||'',c.hospital||'',c.specialty||'',c.approach||'',c.anesthType||'',c.diagnosis||'',c.status==='billed'?'Submitted':'Pending',c.codes.length,caseTotal(c)]));
+  s1.push([]); s1.push(['','','','','','','','','','','','','TOTAL','',list.reduce((s,c)=>s+caseTotal(c),0)]);
+  const ws1 = XLSX.utils.aoa_to_sheet(s1);
+  ws1['!cols'] = [10,26,15,20,20,20,8,20,24,18,14,28,14,7,12].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws1,'Case summary');
+
+  // Sheet 2 — Act details
+  const s2 = [
+    ['ACT DETAILS BY CASE'],
+    [`${surgeon} | N° RAMQ: ${ramq} | Period: ${from} to ${to}`],
+    [],
+    ['Date','Patient','NAM','RAMQ Code','Act description','Specialty','Section','Tariff','Role','Base fee ($)','Applied fee ($)','Status']
+  ];
+  list.forEach(c=>{
+    c.codes.forEach(x=>{
+      const app = getAppliedFee(x);
+      s2.push([c.date,c.patient,c.nam||'',x.code,x.desc,x.specialty,x.section,getFeeLabel(x),x.role==='primary'?'Lead surgeon':'Assistant / Co-surgeon',getBaseFee(x),app,c.status==='billed'?'Submitted':'Pending']);
+    });
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(s2);
+  ws2['!cols'] = [10,26,15,10,46,22,22,20,24,14,14,14].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws2,'Act details');
+
+  // Sheet 3 — By RAMQ code
+  const cm = {};
+  list.forEach(c=>{
+    c.codes.forEach(x=>{
+      const feeLabel = getFeeLabel(x);
+      const k=x.code+'|'+x.role+'|'+feeLabel;
+      if(!cm[k]) cm[k]={code:x.code,desc:x.desc,spec:x.specialty,role:x.role,tariff:feeLabel,base:getBaseFee(x),n:0,tot:0};
+      cm[k].n++; cm[k].tot+=getAppliedFee(x);
+    });
+  });
+  const s3 = [
+    ['SUMMARY BY RAMQ CODE'],
+    [`${surgeon} | Period: ${from} to ${to}`],
+    [],
+    ['RAMQ Code','Description','Specialty','Tariff','Role','Base fee ($)','Count','Total ($)'],
+    ...Object.values(cm).sort((a,b)=>b.tot-a.tot).map(r=>[r.code,r.desc,r.spec,r.tariff,r.role==='primary'?'Lead surgeon':'Assistant',r.base,r.n,r.tot]),
+    [],
+    ['','','','','','','TOTAL',Object.values(cm).reduce((s,r)=>s+r.tot,0)]
+  ];
+  const ws3 = XLSX.utils.aoa_to_sheet(s3);
+  ws3['!cols'] = [10,48,22,20,22,14,8,12].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws3,'By RAMQ code');
+
+  XLSX.writeFile(wb, `Facturation_RAMQ_${surgeon.replace(/\s/g,'_')}_${from}_${to}.xlsx`);
+  // Save settings
+  const s = document.getElementById('expSurgeon').value;
+  const r = document.getElementById('expRAMQ').value;
+  if(s){settings.surgeon=s;localStorage.setItem('cqSettings',JSON.stringify(settings));}
+  if(r){settings.ramqNum=r;localStorage.setItem('cqSettings',JSON.stringify(settings));}
+  toast('Excel file exported!','success');
+}
+
+function exportCSV() {
+  const list = getExpList();
+  if (!list.length) { toast('No cases to export','error'); return; }
+  const rows=[['Date','Patient','NAM','RAMQ Code','Description','Specialty','Tariff','Role','Fee ($)','Surgeon','Anesthesiologist','Hospital','Diagnosis','Status']];
+  list.forEach(c=>c.codes.forEach(x=>{
+    const fee = getAppliedFee(x);
+    rows.push([c.date,c.patient,c.nam||'',x.code,x.desc,x.specialty,getFeeLabel(x),x.role==='primary'?'Lead surgeon':'Assistant',fee.toFixed(2),c.surgeon,c.anesthesiologist||'',c.hospital||'',c.diagnosis||'',c.status==='billed'?'Submitted':'Pending']);
+  }));
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`RAMQ_${today()}.csv`; a.click();
+  toast('CSV exported!','success');
+}
+
+function printView() {
+  const list = getExpList();
+  if (!list.length) { toast('No cases to print','error'); return; }
+  const surgeon = document.getElementById('expSurgeon').value||'Surgeon';
+  const ramq = document.getElementById('expRAMQ').value;
+  const tot = list.reduce((s,c)=>s+caseTotal(c),0);
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facturation RAMQ</title>
+<style>body{font-family:Arial,sans-serif;font-size:11px;max-width:960px;margin:0 auto;padding:20px}
+h1{font-size:16px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-bottom:14px}
+th{background:#1e3a5f;color:#fff;padding:6px 8px;text-align:left;font-size:10px}
+td{padding:5px 8px;border-bottom:1px solid #e0e0e0;font-size:10px}
+tr:nth-child(even){background:#f5f7fa}.ch{background:#eef3ff;padding:7px;border-radius:4px;margin-bottom:6px}
+.tot{font-weight:bold;text-align:right;margin-top:8px;font-size:12px}
+@media print{.np{display:none}}</style></head><body>
+<h1>RAMQ Billing — Statement of Acts</h1>
+<p><strong>${surgeon}</strong>${ramq?' · N° RAMQ: '+ramq:''} · Exported ${today()}</p>
+${list.map(c=>`<div class="ch"><strong>${c.date} · ${c.patient}</strong>${c.nam?' · NAM: '+c.nam:''} · Dr ${c.surgeon}${c.hospital?' · '+c.hospital:''} ${c.duration?'· '+c.duration+' min':''} · <em>${c.status==='billed'?'✓ Submitted':'⏳ Pending'}</em></div>
+<table><tr><th>RAMQ Code</th><th>Description</th><th>Tariff</th><th>Role</th><th>Fee ($)</th></tr>
+${c.codes.map(x=>`<tr><td><strong>${x.code}</strong></td><td>${x.desc}</td><td>${esc(getFeeLabel(x))}</td><td>${x.role==='primary'?'Lead surgeon':'Assistant'}</td><td>${fmt(getAppliedFee(x))}</td></tr>`).join('')}
+<tr style="font-weight:bold"><td colspan="4" style="text-align:right">SUBTOTAL</td><td>${fmt(caseTotal(c))}</td></tr></table>`).join('')}
+<div class="tot">GRAND TOTAL: ${fmt(tot)} · ${list.length} case${list.length!==1?'s':''}</div>
+<button class="np" style="margin-top:14px;padding:8px 18px;cursor:pointer" onclick="window.print()">Print</button>
+</body></html>`);
+  w.document.close();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═════════════════════════════════════════════════════════════════════════════
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fmt(n){return'$'+((n||0).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g,',')}
+function toast(msg,type='success'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className=`toast ${type}`;
+  el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// Close results on outside click
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.code-search-wrap')) document.getElementById('codeResults').style.display='none';
+});
+
+// ── START ──
+checkSession();
+</script>
+</body>
+</html>
